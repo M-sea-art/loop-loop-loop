@@ -1,6 +1,7 @@
 .loop/reports/
 .loop/evidence/
 .loop/tmp/
+.loop/skill-candidates/
 .loop/*.assembled.md
 __pycache__/
 *.py[cod]
@@ -8,4 +9,3 @@ __pycache__/
 venv/
 .DS_Store
 Thumbs.db
-

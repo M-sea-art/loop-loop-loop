@@ -20,3 +20,5 @@ Discovery order:
 Do not add a tool because it is interesting. Add it only when it removes a current blocker.
 
 v0 local scan covers Git, Codex CLI, project docs, common package files, AGENTS files, and project `.codex/skills`.
+
+Use `python scripts/loop.py discover .` to refresh `.loop/CAPABILITIES.md`. Record external lookup intent in `.loop/SEARCH_PLAN.md` and reusable options in `.loop/REUSE_CANDIDATES.md`; do not browse or install tools unless the current goal needs it.

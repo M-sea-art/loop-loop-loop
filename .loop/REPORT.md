@@ -8,11 +8,51 @@ None yet.
 
 - None yet.
 
+## Modified Files
+
+- None yet.
+
+## Run Command
+
+- None yet.
+
 ## Verification
 
 - None yet.
 
+## Verification Command
+
+- None yet.
+
+## Exit Status
+
+- None yet.
+
 ## Evidence
+
+- None yet.
+
+## Evidence Paths
+
+- None yet.
+
+## Score Before
+
+- None yet.
+
+## Score After
+
+- None yet.
+
+## Highest Deductions Fixed
+
+- None yet.
+
+## Remaining Risk
+
+- None yet.
+
+## Parent Decision Needed
 
 - None yet.
 

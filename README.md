@@ -25,6 +25,7 @@ git clone https://github.com/M-sea-art/loop-loop-loop.git
 cd loop-loop-loop
 python scripts/loop.py install C:\path\to\your\project
 python scripts/loop.py check C:\path\to\your\project
+python scripts/loop.py discover C:\path\to\your\project
 python scripts/loop.py run C:\path\to\your\project
 python scripts/loop.py run-loop C:\path\to\your\project --max-iterations 10
 ```
@@ -110,6 +111,8 @@ Experience becomes skill.
 - `init <project>` creates `.loop/` state without overwriting existing state.
 - `prompt` prints the short startup prompt.
 - `check <project>` checks runtime files, state files, Codex CLI, Git, and obvious secret patterns.
+- `discover <project>` writes a local capability scan to `.loop/CAPABILITIES.md`.
 - `score <project>` applies the minimum no-evidence-no-pass rule.
+- `distill-experience <project>` writes repeated local lessons to `.loop/skill-candidates/`.
 - `run <project>` runs one `codex exec` loop with the result schema and writes `.loop/reports/`.
 - `run-loop <project>` repeats one-round runs until pass, blocked, or the max iteration limit.

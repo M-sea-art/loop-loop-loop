@@ -22,7 +22,17 @@ Update `.loop/STATE.md` with status, evidence, blockers, and next_run_instructio
 Do not merge, publish, deploy, delete important files, reset history, use credentials, pay money, or claim formal completion.
 """
 
-TEMPLATES = ["GOAL.md", "GOALS.md", "REPORT.md", "STATE.md", "CAPABILITIES.md", "EXPERIENCE.md", "ACCEPTANCE.md"]
+TEMPLATES = [
+    "GOAL.md",
+    "GOALS.md",
+    "REPORT.md",
+    "SEARCH_PLAN.md",
+    "REUSE_CANDIDATES.md",
+    "STATE.md",
+    "CAPABILITIES.md",
+    "EXPERIENCE.md",
+    "ACCEPTANCE.md",
+]
 SCORE_FIELDS = {
     "goal_completion": (25, ["goal_completion", "目标完成度"]),
     "usability": (20, ["usability", "可运行/可使用性", "可运行性", "可使用性"]),
@@ -148,7 +158,7 @@ def list_rel(project: Path, pattern: str) -> list[str]:
 
 
 def capabilities(project: Path) -> dict[str, object]:
-    return {
+    caps = {
         "git": git_ok(project),
         "codex_cli": bool(shutil.which("codex")),
         "docs": list_rel(project, "README*") + list_rel(project, "AGENTS*"),
@@ -160,6 +170,27 @@ def capabilities(project: Path) -> dict[str, object]:
         "project_skills": list_rel(project, ".codex/skills/*/SKILL.md"),
         "github_workflows": list_rel(project, ".github/workflows/*"),
     }
+    gaps: list[str] = []
+    if not caps["codex_cli"]:
+        gaps.append("codex CLI unavailable")
+    if not caps["scripts"]:
+        gaps.append("no local scripts discovered")
+    if not caps["package_files"]:
+        gaps.append("no package/build manifest discovered")
+    if not caps["project_skills"]:
+        gaps.append("no project Codex skills discovered")
+    caps["recommended_agents"] = ["builder", "verifier"] + (["researcher"] if gaps else [])
+    caps["known_gaps"] = gaps
+    caps["recommended_external_searches"] = [
+        "official docs for missing tools",
+        "GitHub examples for similar project structure",
+    ] if gaps else []
+    return caps
+
+
+def write_capabilities(project: Path, caps: dict[str, object]) -> None:
+    lines = ["# Capabilities", "", "## Local Scan", "", "```json", json.dumps(caps, ensure_ascii=False, indent=2), "```", ""]
+    (project / ".loop" / "CAPABILITIES.md").write_text("\n".join(lines), encoding="utf-8")
 
 
 def check(project: Path) -> int:
@@ -168,6 +199,7 @@ def check(project: Path) -> int:
     missing_runtime = [name for name in RUNTIME_FILES if not (runtime_dir / name).exists()]
     missing_state = [name for name in TEMPLATES if not (loop_dir / name).exists()]
     schema_ok, schema_error = schema_status(project)
+    caps = capabilities(project)
     result = {
         "runtime_ok": not missing_runtime,
         "missing_runtime": missing_runtime,
@@ -177,11 +209,19 @@ def check(project: Path) -> int:
         "missing_state": missing_state,
         "codex_cli": bool(shutil.which("codex")),
         "git_repo": git_ok(project),
-        "capabilities": capabilities(project),
+        "capabilities": caps,
         "secret_hits": scan_secrets(project),
     }
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0 if result["runtime_ok"] and result["schema_ok"] and result["state_ok"] and not result["secret_hits"] else 1
+
+
+def discover(project: Path) -> int:
+    init(project)
+    caps = capabilities(project)
+    write_capabilities(project, caps)
+    print(json.dumps(caps, ensure_ascii=False, indent=2))
+    return 0
 
 
 def evidence_present(loop_dir: Path, combined: str) -> bool:
@@ -262,6 +302,41 @@ def score(project: Path) -> int:
     return 0
 
 
+def distill_experience(project: Path) -> int:
+    loop_dir = project / ".loop"
+    source = loop_dir / "EXPERIENCE.md"
+    candidates = loop_dir / "skill-candidates"
+    candidates.mkdir(exist_ok=True)
+    lines = [
+        line.strip("- ").strip()
+        for line in text(source).splitlines()
+        if line.strip().startswith("- ") and len(line.strip()) > 6
+    ]
+    counts: dict[str, int] = {}
+    for line in lines:
+        counts[line] = counts.get(line, 0) + 1
+    repeated = [line for line, count in counts.items() if count >= 2]
+    if not repeated:
+        print("No repeated experience found; no candidate skill written.")
+        return 0
+    skill = candidates / "generated-loop-patterns.SKILL.md"
+    body = [
+        "---",
+        "name: generated-loop-patterns",
+        "description: Candidate skill distilled from repeated local loop experience.",
+        "---",
+        "",
+        "# Generated Loop Patterns",
+        "",
+        "Review before promoting this candidate skill.",
+        "",
+    ]
+    body.extend(f"- {line}" for line in repeated)
+    skill.write_text("\n".join(body) + "\n", encoding="utf-8")
+    print(f"wrote {skill}")
+    return 0
+
+
 def run(project: Path) -> int:
     init(project)
     if os.environ.get("CODEX_DRY_RUN") == "1":
@@ -301,7 +376,7 @@ def run_loop(project: Path, threshold: int, max_iterations: int) -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="loop loop loop runtime launcher")
-    parser.add_argument("command", choices=["install", "init", "prompt", "check", "score", "run", "run-loop"])
+    parser.add_argument("command", choices=["install", "init", "prompt", "check", "discover", "score", "distill-experience", "run", "run-loop"])
     parser.add_argument("project", nargs="?", default=".")
     parser.add_argument("--threshold", type=int, default=95)
     parser.add_argument("--max-iterations", type=int, default=10)
@@ -319,8 +394,12 @@ def main() -> int:
         return 0
     if args.command == "check":
         return check(project)
+    if args.command == "discover":
+        return discover(project)
     if args.command == "score":
         return score(project)
+    if args.command == "distill-experience":
+        return distill_experience(project)
     if args.command == "run-loop":
         return run_loop(project, args.threshold, args.max_iterations)
     return run(project)
