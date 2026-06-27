@@ -9,4 +9,3 @@
 ## Gaps
 
 - Define after reading the goal.
-

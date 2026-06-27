@@ -19,4 +19,3 @@ None yet.
 ## next_run_instruction
 
 Read `.codex/runtime/INDEX.md`, recover this state, and run one loop.
-

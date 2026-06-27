@@ -17,6 +17,7 @@ This is the Codex Loop Runtime. Keep the live prompt short and route behavior th
 Recover state, discover the highest-value next action, execute it, verify it, accept or reject it, then record what changed.
 
 Every run must update `.loop/STATE.md`.
+Every run must write a report under `.loop/reports/` and return the shape in `loop_result.schema.json`.
 
 ## Status
 
@@ -24,4 +25,3 @@ Every run must update `.loop/STATE.md`.
 - `CANDIDATE_PARTIAL`: useful progress, not enough evidence or score.
 - `CANDIDATE_REJECTED`: attempted path failed, another route exists.
 - `CANDIDATE_BLOCKED`: no safe next action without human input.
-

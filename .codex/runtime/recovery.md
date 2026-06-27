@@ -12,4 +12,3 @@ If a previous run stopped:
 - keep scope inside `.loop/GOAL.md`
 
 If state conflicts with the repository, trust the repository and repair state.
-

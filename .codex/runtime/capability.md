@@ -19,3 +19,4 @@ Discovery order:
 
 Do not add a tool because it is interesting. Add it only when it removes a current blocker.
 
+v0 local scan covers Git, Codex CLI, project docs, common package files, AGENTS files, and project `.codex/skills`.

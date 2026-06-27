@@ -14,3 +14,4 @@ The maker cannot approve its own work.
 
 If real subagents are unavailable, simulate roles in the same run and record that in `.loop/STATE.md`.
 
+v0 records the needed role and whether it was simulated. Temporary roles do not persist unless experience shows repeated value.

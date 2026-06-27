@@ -11,4 +11,3 @@ Each run:
 5. Hand the result to verification before acceptance.
 
 Do not declare formal project completion. At most declare candidate status.
-

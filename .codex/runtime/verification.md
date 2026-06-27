@@ -12,3 +12,9 @@ If no runnable check exists, create the smallest practical check or mark `needs_
 
 Never delete, disable, or weaken failing checks to pass.
 
+Default local checks:
+
+```bash
+python scripts/loop.py check .
+python scripts/loop.py score .
+```

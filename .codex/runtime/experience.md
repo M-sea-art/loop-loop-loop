@@ -12,3 +12,4 @@ After each loop, append to `.loop/EXPERIENCE.md`:
 
 Only promote repeated lessons to skills. One-off notes stay in experience.
 
+v0 appends experience only. It does not write global skills automatically.

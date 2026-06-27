@@ -21,8 +21,19 @@ Prompt -> Runtime -> State -> Capability -> Verify -> Experience -> Repeat
 ## Quick Start
 
 ```bash
+git clone https://github.com/M-sea-art/loop-loop-loop.git
+cd loop-loop-loop
+python scripts/loop.py install C:\path\to\your\project
+python scripts/loop.py check C:\path\to\your\project
+python scripts/loop.py run C:\path\to\your\project
+```
+
+Inside this repository:
+
+```bash
 python scripts/loop.py init
 python scripts/loop.py prompt
+python scripts/loop.py check
 ```
 
 Run one Codex loop:
@@ -90,3 +101,11 @@ Prompt gets shorter.
 Runtime gets stronger.
 Experience becomes skill.
 
+## Commands
+
+- `install <project>` copies the runtime, project skill, templates, and launcher scripts into a project.
+- `init <project>` creates `.loop/` state without overwriting existing state.
+- `prompt` prints the short startup prompt.
+- `check <project>` checks runtime files, state files, Codex CLI, Git, and obvious secret patterns.
+- `score <project>` applies the minimum no-evidence-no-pass rule.
+- `run <project>` runs one `codex exec` loop with the result schema and writes `.loop/reports/`.

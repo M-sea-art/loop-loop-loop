@@ -21,4 +21,3 @@ Procedure:
 4. Verify before accepting.
 5. Update `.loop/STATE.md` and `.loop/EXPERIENCE.md`.
 6. If not passed, write `next_run_instruction`.
-

@@ -19,4 +19,3 @@ Describe the candidate outcome.
 - credentials
 - destructive reset
 - formal approval
-

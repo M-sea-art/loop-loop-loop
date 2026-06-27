@@ -13,3 +13,4 @@ Accepted output must state:
 
 Pass requires no P0 blocker and enough evidence for the current goal. A candidate pass is not release approval.
 
+Use `python scripts/loop.py score .` as the minimum local scorer. It cannot prove quality; it only prevents pass without evidence.
