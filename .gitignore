@@ -1,0 +1,11 @@
+.loop/reports/
+.loop/evidence/
+.loop/tmp/
+.loop/*.assembled.md
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.DS_Store
+Thumbs.db
+
