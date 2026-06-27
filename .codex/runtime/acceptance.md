@@ -1,6 +1,6 @@
 # Acceptance Engine
 
-Acceptance compares evidence against `.loop/GOAL.md`.
+Acceptance compares `.loop/REPORT.md` and evidence against `.loop/GOAL.md` and `.loop/GOALS.md`.
 
 Default result is rejected until evidence proves otherwise.
 

@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LoopLoopLoopResult",
+  "type": "object",
+  "required": [
+    "status",
+    "total_score",
+    "scores",
+    "actions_taken",
+    "verification",
+    "evidence",
+    "acceptance",
+    "blockers",
+    "experience",
+    "next_run_instruction"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "status": {
+      "enum": [
+        "CANDIDATE_PASS",
+        "CANDIDATE_PARTIAL",
+        "CANDIDATE_REJECTED",
+        "CANDIDATE_BLOCKED"
+      ]
+    },
+    "total_score": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "scores": {
+      "type": "object",
+      "required": [
+        "goal_completion",
+        "usability",
+        "quality",
+        "ux_readability",
+        "stability_correctness",
+        "delivery_completeness"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "goal_completion": { "type": "number", "minimum": 0, "maximum": 25 },
+        "usability": { "type": "number", "minimum": 0, "maximum": 20 },
+        "quality": { "type": "number", "minimum": 0, "maximum": 20 },
+        "ux_readability": { "type": "number", "minimum": 0, "maximum": 15 },
+        "stability_correctness": { "type": "number", "minimum": 0, "maximum": 10 },
+        "delivery_completeness": { "type": "number", "minimum": 0, "maximum": 10 }
+      }
+    },
+    "actions_taken": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "verification": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "evidence": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "acceptance": {
+      "type": "object",
+      "required": ["result", "reason"],
+      "additionalProperties": false,
+      "properties": {
+        "result": {
+          "enum": ["accepted", "rejected", "needs_evidence", "blocked"]
+        },
+        "reason": { "type": "string" }
+      }
+    },
+    "blockers": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "experience": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "next_run_instruction": { "type": "string" }
+  }
+}

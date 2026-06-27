@@ -26,6 +26,7 @@ cd loop-loop-loop
 python scripts/loop.py install C:\path\to\your\project
 python scripts/loop.py check C:\path\to\your\project
 python scripts/loop.py run C:\path\to\your\project
+python scripts/loop.py run-loop C:\path\to\your\project --max-iterations 10
 ```
 
 Inside this repository:
@@ -63,6 +64,8 @@ CODEX_DRY_RUN=1 bash scripts/loop_once.sh .
 
 .loop/
   GOAL.md
+  GOALS.md
+  REPORT.md
   STATE.md
   CAPABILITIES.md
   EXPERIENCE.md
@@ -109,3 +112,4 @@ Experience becomes skill.
 - `check <project>` checks runtime files, state files, Codex CLI, Git, and obvious secret patterns.
 - `score <project>` applies the minimum no-evidence-no-pass rule.
 - `run <project>` runs one `codex exec` loop with the result schema and writes `.loop/reports/`.
+- `run-loop <project>` repeats one-round runs until pass, blocked, or the max iteration limit.

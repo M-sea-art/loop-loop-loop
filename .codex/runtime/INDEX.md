@@ -16,6 +16,8 @@ This is the Codex Loop Runtime. Keep the live prompt short and route behavior th
 
 Recover state, discover the highest-value next action, execute it, verify it, accept or reject it, then record what changed.
 
+`GOAL.md` owns the parent goal. `GOALS.md` owns subgoals. `REPORT.md` owns the current execution report. `ACCEPTANCE.md` owns parent acceptance.
+
 Every run must update `.loop/STATE.md`.
 Every run must write a report under `.loop/reports/` and return the shape in `loop_result.schema.json`.
 
