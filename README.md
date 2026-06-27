@@ -69,6 +69,7 @@ CODEX_DRY_RUN=1 bash scripts/loop_once.sh .
   REPORT.md
   STATE.md
   CAPABILITIES.md
+  AUTOMATION_HANDOFF.md
   EXPERIENCE.md
   ACCEPTANCE.md
   reports/

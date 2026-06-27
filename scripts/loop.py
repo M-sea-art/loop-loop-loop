@@ -28,6 +28,7 @@ TEMPLATES = [
     "REPORT.md",
     "SEARCH_PLAN.md",
     "REUSE_CANDIDATES.md",
+    "AUTOMATION_HANDOFF.md",
     "STATE.md",
     "CAPABILITIES.md",
     "EXPERIENCE.md",
@@ -193,6 +194,50 @@ def write_capabilities(project: Path, caps: dict[str, object]) -> None:
     (project / ".loop" / "CAPABILITIES.md").write_text("\n".join(lines), encoding="utf-8")
 
 
+def write_reuse_workflow(project: Path, caps: dict[str, object]) -> None:
+    gaps = caps.get("known_gaps", [])
+    searches = caps.get("recommended_external_searches", [])
+    search_rows = [
+        "| query | source | reason | status |",
+        "| --- | --- | --- | --- |",
+    ]
+    reuse_rows = [
+        "| candidate | source | why reusable | risk | chosen |",
+        "| --- | --- | --- | --- | --- |",
+    ]
+    if gaps:
+        for gap in gaps:
+            for source in searches or ["official docs / GitHub / web"]:
+                search_rows.append(f"| {gap} | {source} | fill current capability gap | planned |")
+            reuse_rows.append(f"| pending for {gap} | pending | avoid rebuilding if a stable option exists | unknown | no |")
+    else:
+        search_rows.append("| none | local scan | no current local gap | not needed |")
+        reuse_rows.append("| none | local scan | no reuse candidate needed | none | no |")
+    (project / ".loop" / "SEARCH_PLAN.md").write_text("# Search Plan\n\n" + "\n".join(search_rows) + "\n", encoding="utf-8")
+    (project / ".loop" / "REUSE_CANDIDATES.md").write_text("# Reuse Candidates\n\n" + "\n".join(reuse_rows) + "\n", encoding="utf-8")
+
+
+def write_automation_handoff(project: Path, status: str, next_command: str) -> None:
+    body = [
+        "# Automation Handoff",
+        "",
+        f"status: {status}",
+        f"updated_at: {datetime.now().isoformat(timespec='seconds')}",
+        "",
+        "## Next Command",
+        "",
+        f"`{next_command}`",
+        "",
+        "## Stop Conditions",
+        "",
+        "- CANDIDATE_PASS",
+        "- CANDIDATE_BLOCKED",
+        "- human gate",
+        "- max iterations reached",
+    ]
+    (project / ".loop" / "AUTOMATION_HANDOFF.md").write_text("\n".join(body) + "\n", encoding="utf-8")
+
+
 def check(project: Path) -> int:
     loop_dir = project / ".loop"
     runtime_dir = project / ".codex" / "runtime"
@@ -220,6 +265,8 @@ def discover(project: Path) -> int:
     init(project)
     caps = capabilities(project)
     write_capabilities(project, caps)
+    write_reuse_workflow(project, caps)
+    write_automation_handoff(project, "CANDIDATE_PARTIAL", "python scripts/loop.py run-loop . --max-iterations 10")
     print(json.dumps(caps, ensure_ascii=False, indent=2))
     return 0
 
@@ -235,8 +282,20 @@ def evidence_present(loop_dir: Path, combined: str) -> bool:
     return any(re.search(pattern, combined) for pattern in evidence_patterns)
 
 
-def parse_scores(combined: str, has_evidence: bool) -> dict[str, float]:
+def field_has_evidence(combined: str, field: str, aliases: list[str]) -> bool:
+    evidence_terms = r"(evidence|证据|evidence_paths?|path|路径|\.loop/|\.loop\\|reports?/|reports?\\|exit code:\s*0|PASS)"
+    window = 220
+    for alias in [field] + aliases:
+        for match in re.finditer(re.escape(alias), combined, re.I):
+            snippet = combined[match.start(): match.start() + window]
+            if re.search(evidence_terms, snippet, re.I):
+                return True
+    return False
+
+
+def parse_scores(combined: str, has_evidence: bool) -> tuple[dict[str, float], list[str]]:
     scores: dict[str, float] = {}
+    unbound: list[str] = []
     any_explicit = False
     for key, (maxv, aliases) in SCORE_FIELDS.items():
         value: float | None = None
@@ -255,7 +314,12 @@ def parse_scores(combined: str, has_evidence: bool) -> dict[str, float]:
                 break
         if value is not None:
             any_explicit = True
-            scores[key] = max(0, min(maxv, value))
+            value = max(0, min(maxv, value))
+            if not field_has_evidence(combined, key, aliases):
+                # ponytail: explicit scores without evidence are allowed to show intent, not to pass gates.
+                value = min(value, maxv * 0.5)
+                unbound.append(key)
+            scores[key] = value
         else:
             scores[key] = 0
     if not any_explicit and has_evidence:
@@ -268,7 +332,7 @@ def parse_scores(combined: str, has_evidence: bool) -> dict[str, float]:
             "stability_correctness": 4,
             "delivery_completeness": 4,
         }
-    return scores
+    return scores, unbound
 
 
 def score_data(project: Path) -> dict[str, object]:
@@ -276,7 +340,7 @@ def score_data(project: Path) -> dict[str, object]:
     combined = "\n".join([text(loop_dir / name) for name in ("STATE.md", "REPORT.md", "ACCEPTANCE.md")])
     blocked = bool(re.search(r"(CANDIDATE_BLOCKED|blocked|阻塞|human gate|凭据|权限|验证码|付款)", combined, re.I))
     evidence = evidence_present(loop_dir, combined)
-    scores = parse_scores(combined, evidence)
+    scores, unbound = parse_scores(combined, evidence)
     total = sum(scores.values())
     pass_claim = "CANDIDATE_PASS" in combined
     status = "CANDIDATE_BLOCKED" if blocked else ("CANDIDATE_PASS" if pass_claim and evidence and total >= 95 else "CANDIDATE_PARTIAL")
@@ -290,6 +354,7 @@ def score_data(project: Path) -> dict[str, object]:
         "total_score": total,
         "scores": scores,
         "highest_deductions": deductions[:3],
+        "unbound_score_fields": unbound,
         "has_evidence": evidence,
         "blocked": blocked,
         "next_run_instruction_present": "next_run_instruction" in combined,
@@ -366,11 +431,15 @@ def run_loop(project: Path, threshold: int, max_iterations: int) -> int:
         last_score = score_data(project)
         print(json.dumps(last_score, ensure_ascii=False, indent=2))
         if last_score["status"] == "CANDIDATE_BLOCKED":
+            write_automation_handoff(project, "CANDIDATE_BLOCKED", "Resolve blockers in .loop/REPORT.md, then rerun python scripts/loop.py run-loop . --max-iterations 10")
             return 2
         if last_score["status"] == "CANDIDATE_PASS" and float(last_score["total_score"]) >= threshold:
+            write_automation_handoff(project, "CANDIDATE_PASS", "Review .loop/ACCEPTANCE.md and evidence before any human-gated action.")
             return 0
     if dry_run:
+        write_automation_handoff(project, "CANDIDATE_PARTIAL", "python scripts/loop.py run-loop . --max-iterations 10")
         return 0
+    write_automation_handoff(project, str(last_score.get("status", "CANDIDATE_PARTIAL")), "python scripts/loop.py run-loop . --max-iterations 10")
     return 0 if last_score.get("status") == "CANDIDATE_PASS" else 2
 
 

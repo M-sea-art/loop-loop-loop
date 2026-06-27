@@ -36,6 +36,15 @@ None yet.
 
 - None yet.
 
+## Score Evidence
+
+- goal_completion: evidence path required
+- usability: evidence path required
+- quality: evidence path required
+- ux_readability: evidence path required
+- stability_correctness: evidence path required
+- delivery_completeness: evidence path required
+
 ## Score Before
 
 - None yet.

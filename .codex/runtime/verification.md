@@ -12,6 +12,8 @@ If no runnable check exists, create the smallest practical check or mark `needs_
 
 Never delete, disable, or weaken failing checks to pass.
 
+Each score field must cite evidence. Unbound score fields are capped by the local scorer and cannot carry a candidate to pass.
+
 Default local checks:
 
 ```bash

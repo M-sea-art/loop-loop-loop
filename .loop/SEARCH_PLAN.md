@@ -1,7 +1,6 @@
 # Search Plan
 
-Use this only when local capabilities are not enough.
-
 | query | source | reason | status |
 | --- | --- | --- | --- |
-| pending | official docs / GitHub / web | define the missing capability first | pending |
+| no package/build manifest discovered | official docs for missing tools | fill current capability gap | planned |
+| no package/build manifest discovered | GitHub examples for similar project structure | fill current capability gap | planned |
