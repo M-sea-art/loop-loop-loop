@@ -1,15 +1,15 @@
 # Automation Handoff
 
-status: CANDIDATE_PARTIAL
-updated_at: 2026-06-27T14:06:33
+status: CONTRACT_DRAFT
 
 ## Next Command
 
-`python scripts/loop.py run-loop . --max-iterations 10`
+`python scripts/loop.py frame .`
 
 ## Stop Conditions
 
-- CANDIDATE_PASS
-- CANDIDATE_BLOCKED
-- human gate
+- INDEPENDENTLY_VERIFIED
+- NEEDS_HUMAN
+- BLOCKED
+- CONTRACT_DRIFT or POLICY_DRIFT
 - max iterations reached

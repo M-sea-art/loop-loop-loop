@@ -1,14 +1,14 @@
 # Recovery Engine
 
-Start from the last durable state, not memory.
+Start from durable state, hashes, and repository reality rather than model memory.
 
-Read `.loop/STATE.md` first. If missing, initialize with `scripts/loop.py init`.
+Read in order:
 
-If a previous run stopped:
+1. `.loop/STATE.md`
+2. `.loop/contract.lock.json`
+3. `.loop/ACCEPTANCE_CONTRACT.json`
+4. `.loop/EVIDENCE_LEDGER.jsonl`
+5. `.loop/REVIEW.md`
+6. `.loop/ACCEPTANCE.md`
 
-- continue from `next_run_instruction`
-- preserve blockers
-- do not redo completed evidence unless stale
-- keep scope inside `.loop/GOAL.md`
-
-If state conflicts with the repository, trust the repository and repair state.
+If the contract hash, policy hash, evidence artifact hash, workspace fingerprint, or review receipt is stale, invalidate the dependent decision. Do not preserve a PASS across changed evidence or artifacts.

@@ -1,0 +1,48 @@
+{
+  "artifact_modalities": [
+    "general"
+  ],
+  "change_control": {
+    "frozen": false,
+    "reason": ""
+  },
+  "contract_id": "replace-me",
+  "contract_version": 1,
+  "forbidden_proxies": [
+    "A successful build alone does not prove the user's observable outcome."
+  ],
+  "gates": {
+    "automation": true,
+    "challenge": true,
+    "human_review": "risk_based",
+    "independent_review": true
+  },
+  "outcomes": [
+    {
+      "description": "Replace with a directly observable result for the user.",
+      "evidence_types": [
+        "inspection"
+      ],
+      "id": "OUT-001",
+      "scenarios": [
+        "SCN-001"
+      ]
+    }
+  ],
+  "prohibited_failures": [
+    {
+      "description": "Do not substitute process success for the real outcome.",
+      "id": "FAIL-001"
+    }
+  ],
+  "risk_level": "L2",
+  "scenarios": [
+    {
+      "description": "Replace with a real operating state or boundary condition.",
+      "id": "SCN-001",
+      "required": true
+    }
+  ],
+  "status": "DRAFT",
+  "user_intent": "Describe the user's real observable goal."
+}

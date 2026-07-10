@@ -1,7 +1,5 @@
 # Search Plan
 
-Use this only when local capabilities are not enough.
-
 | query | source | reason | status |
 | --- | --- | --- | --- |
-| pending | official docs / GitHub / web | define the missing capability first | pending |
+| pending | official docs / stable primary source | fill a current capability or factual gap | pending |

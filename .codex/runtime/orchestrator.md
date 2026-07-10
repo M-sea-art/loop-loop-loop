@@ -1,13 +1,16 @@
 # Orchestrator
 
-Own the loop, not the implementation details.
+Own state transitions, not implementation details or final truth claims.
 
 Each run:
 
-1. Read `.loop/GOAL.md`, `.loop/GOALS.md`, `.loop/STATE.md`, `.loop/CAPABILITIES.md`, and recent `.loop/EXPERIENCE.md`.
-2. Pick one to three actions that most improve acceptance.
-3. Prefer existing project tools, scripts, tests, skills, and dependencies.
-4. Execute the smallest reversible change that advances the goal.
-5. Write `.loop/REPORT.md`, then hand the result to verification before acceptance.
+1. Recover repository state and the latest durable gate result.
+2. Ensure the real goal has been compiled into a frozen acceptance contract before implementation.
+3. Select one to three uncovered outcome/scenario pairs.
+4. Dispatch a worker for reversible implementation and direct evidence collection.
+5. Do not treat worker scores or reports as acceptance.
+6. Dispatch a fresh, separate, read-only reviewer only after direct evidence coverage is complete.
+7. Let the policy gate decide whether the lifecycle may advance.
+8. Record failures as reusable patterns.
 
-Do not declare formal project completion. At most declare candidate status.
+Never silently rewrite a contract or policy after seeing a failure. Never let the maker approve its own work.

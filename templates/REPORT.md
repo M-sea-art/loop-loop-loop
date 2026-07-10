@@ -1,8 +1,16 @@
-# Report
+# Worker Report
+
+This is a worker report, not an acceptance decision.
 
 ## Current Subgoal
 
 None yet.
+
+## Contract
+
+- contract_hash: required
+- covered_outcomes: pending
+- covered_scenarios: pending
 
 ## Actions Taken
 
@@ -12,56 +20,19 @@ None yet.
 
 - None yet.
 
-## Run Command
+## Observation and Verification
 
 - None yet.
 
-## Verification
+## Direct Evidence Records
 
-- None yet.
+- Add evidence through `python scripts/loop.py record-evidence ...`.
 
-## Verification Command
+## Diagnostic Score
 
-- None yet.
-
-## Exit Status
-
-- None yet.
-
-## Evidence
-
-- None yet.
-
-## Evidence Paths
-
-- None yet.
-
-## Score Evidence
-
-- goal_completion: evidence path required
-- usability: evidence path required
-- quality: evidence path required
-- ux_readability: evidence path required
-- stability_correctness: evidence path required
-- delivery_completeness: evidence path required
-
-## Score Before
-
-- None yet.
-
-## Score After
-
-- None yet.
-
-## Highest Deductions Fixed
-
-- None yet.
+- A score can guide repair but cannot produce PASS.
 
 ## Remaining Risk
-
-- None yet.
-
-## Parent Decision Needed
 
 - None yet.
 
@@ -71,4 +42,4 @@ None yet.
 
 ## next_run_instruction
 
-Read `.codex/runtime/INDEX.md`, select the next ready subgoal from `.loop/GOALS.md`, and run one loop.
+Read the frozen contract and select the next uncovered outcome/scenario pair.

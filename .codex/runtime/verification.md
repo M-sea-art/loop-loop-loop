@@ -1,22 +1,9 @@
 # Verification Engine
 
-No evidence, no pass.
+No direct evidence, no promotion.
 
-Verification should be the smallest check that would fail if the change is wrong:
+Verification must bind every required outcome/scenario pair to an artifact and an observation method that would fail if the outcome were false. Record evidence through `scripts/loop.py record-evidence` so artifact hashes and contract hashes are captured.
 
-- unit test, smoke test, build, lint, dry run, screenshot, log, or manual command
-- exact command and exit status
-- evidence path under `.loop/evidence/` when useful
+Build, lint, console cleanliness, test count, screenshot count, and score are supporting signals only. They cannot substitute for actual runtime, render, recomputation, document, end-to-end, or source evidence.
 
-If no runnable check exists, create the smallest practical check or mark `needs_evidence`.
-
-Never delete, disable, or weaken failing checks to pass.
-
-Each score field must cite evidence. Unbound score fields are capped by the local scorer and cannot carry a candidate to pass.
-
-Default local checks:
-
-```bash
-python scripts/loop.py check .
-python scripts/loop.py score .
-```
+Never delete, disable, weaken, or reinterpret a failing rule to pass. A rule correction requires separate change control and must retain a regression case for the original failure.

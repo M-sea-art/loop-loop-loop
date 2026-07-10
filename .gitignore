@@ -1,7 +1,7 @@
 .loop/reports/
 .loop/evidence/
+.loop/reviews/
 .loop/tmp/
-.loop/skill-candidates/
 .loop/*.assembled.md
 __pycache__/
 *.py[cod]

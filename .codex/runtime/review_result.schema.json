@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LoopIndependentReviewResult",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "review_context_id",
+    "reviewer_role",
+    "self_review",
+    "contract_hash",
+    "policy_hash",
+    "workspace_fingerprint",
+    "evidence_ledger_hash",
+    "verdict",
+    "reviewed_artifacts",
+    "claims",
+    "findings",
+    "challenge",
+    "remaining_uncertainty",
+    "next_action"
+  ],
+  "properties": {
+    "review_context_id": {"type": "string", "minLength": 8},
+    "reviewer_role": {"const": "independent_reviewer"},
+    "self_review": {"const": false},
+    "contract_hash": {"type": "string", "minLength": 16},
+    "policy_hash": {"type": "string", "minLength": 16},
+    "workspace_fingerprint": {"type": "string", "minLength": 16},
+    "evidence_ledger_hash": {"type": "string", "minLength": 16},
+    "verdict": {"enum": ["PASS", "FAIL", "BLOCKED"]},
+    "reviewed_artifacts": {"type": "array", "items": {"type": "string"}},
+    "claims": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["claim_id", "scenario_id", "verdict", "evidence_refs", "reason"],
+        "properties": {
+          "claim_id": {"type": "string"},
+          "scenario_id": {"type": "string"},
+          "verdict": {"enum": ["PASS", "FAIL", "BLOCKED"]},
+          "evidence_refs": {"type": "array", "items": {"type": "string"}},
+          "reason": {"type": "string"}
+        }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["severity", "claim_id", "scenario_id", "summary", "evidence_refs"],
+        "properties": {
+          "severity": {"enum": ["P0", "P1", "P2", "P3"]},
+          "claim_id": {"type": "string"},
+          "scenario_id": {"type": "string"},
+          "summary": {"type": "string"},
+          "evidence_refs": {"type": "array", "items": {"type": "string"}}
+        }
+      }
+    },
+    "challenge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["attempted", "verdict", "cases"],
+      "properties": {
+        "attempted": {"const": true},
+        "verdict": {"enum": ["PASS", "FAIL", "BLOCKED"]},
+        "cases": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "modality", "target", "hypothesis", "method", "verdict", "evidence_refs"],
+            "properties": {
+              "id": {"type": "string"},
+              "modality": {"enum": ["general", "code", "visual", "data", "document", "automation", "research"]},
+              "target": {"type": "string"},
+              "hypothesis": {"type": "string"},
+              "method": {"type": "string"},
+              "verdict": {"enum": ["PASS", "FAIL", "BLOCKED"]},
+              "evidence_refs": {"type": "array", "items": {"type": "string"}}
+            }
+          }
+        }
+      }
+    },
+    "remaining_uncertainty": {"type": "array", "items": {"type": "string"}},
+    "next_action": {"type": "string"}
+  }
+}

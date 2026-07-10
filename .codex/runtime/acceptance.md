@@ -1,18 +1,16 @@
 # Acceptance Engine
 
-Acceptance compares `.loop/REPORT.md` and evidence against `.loop/GOAL.md` and `.loop/GOALS.md`.
+Acceptance is a deterministic policy gate, not a worker opinion.
 
-Default result is rejected until evidence proves otherwise.
+A candidate can reach `INDEPENDENTLY_VERIFIED` only when:
 
-Accepted output must state:
+1. the contract and policy hashes remain frozen;
+2. every required outcome/scenario pair has valid direct evidence;
+3. evidence artifacts still exist and match their hashes;
+4. a separate read-only reviewer evaluated the same workspace and evidence hashes;
+5. every required claim passed independent review;
+6. no P0/P1 finding remains;
+7. challenge passed for every artifact modality;
+8. no risk-based human gate remains.
 
-- status
-- evidence
-- remaining gap
-- next_run_instruction
-
-Pass requires no P0 blocker and enough evidence for the current goal. A candidate pass is not release approval.
-
-Use `python scripts/loop.py score .` as the minimum local scorer. It cannot prove quality; it only prevents pass without evidence.
-
-Review `.loop/AUTOMATION_HANDOFF.md` before scheduling another run-loop.
+Scores are diagnostic only. A worker cannot emit `CANDIDATE_PASS`. Contract drift, policy drift, stale review, or changed evidence invalidates prior acceptance.
