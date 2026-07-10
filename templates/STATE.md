@@ -1,21 +1,25 @@
 # State
 
-status: CANDIDATE_PARTIAL
-score: 0
-phase: initialized
+lifecycle_status: CONTRACT_DRAFT
+candidate_status: CANDIDATE_PARTIAL
+phase: framing
 
 ## Current Focus
 
-Initialize the runtime and define the goal.
+Define the real goal and freeze the acceptance contract before implementation.
 
 ## Evidence
 
 None yet.
 
+## Independent Review
+
+Not run.
+
 ## Blockers
 
-None yet.
+Acceptance contract is not frozen.
 
 ## next_run_instruction
 
-Read `.codex/runtime/INDEX.md`, recover this state, and run one loop.
+Run `python scripts/loop.py frame .` or complete `.loop/ACCEPTANCE_CONTRACT.json`, then run `python scripts/loop.py freeze-contract .`.

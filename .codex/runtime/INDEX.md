@@ -1,6 +1,6 @@
 # Runtime Index
 
-This is the Codex Loop Runtime. Keep the live prompt short and route behavior through these files.
+This is the Loop evidence-gated runtime. The prompt starts the runtime; durable policy files own the loop.
 
 ## Load Order
 
@@ -8,22 +8,26 @@ This is the Codex Loop Runtime. Keep the live prompt short and route behavior th
 2. `recovery.md`
 3. `capability.md`
 4. `agent-factory.md`
-5. `verification.md`
-6. `acceptance.md`
-7. `experience.md`
+5. `contract.md`
+6. `verification.md`
+7. `observation.md`
+8. `challenge.md`
+9. `acceptance.md`
+10. `experience.md`
 
 ## One Loop
 
-Recover state, discover the highest-value next action, execute it, verify it, accept or reject it, then record what changed.
+```text
+Recover -> Frame/Freeze -> Pick -> Execute -> Observe -> Verify -> Independent Review -> Challenge -> Gate -> Record
+```
 
-`GOAL.md` owns the parent goal. `GOALS.md` owns subgoals. `REPORT.md` owns the current execution report. `ACCEPTANCE.md` owns parent acceptance.
+`GOAL.md` owns intent. `ACCEPTANCE_CONTRACT.json` owns frozen observable outcomes. `EVIDENCE_LEDGER.jsonl` binds claims to direct evidence. Worker reports never own acceptance.
 
-Every run must update `.loop/STATE.md`.
-Every run must write a report under `.loop/reports/` and return the shape in `loop_result.schema.json`.
+## Promotion Boundary
 
-## Status
+- Worker: at most `AUTOMATION_VERIFIED`.
+- Separate read-only reviewer: may return review `PASS`, `FAIL`, or `BLOCKED`.
+- Policy gate: may return `INDEPENDENTLY_VERIFIED` or a non-passing lifecycle state.
+- Human: owns release, merge, deploy, destructive, credential, payment, and risk-based approval gates.
 
-- `CANDIDATE_PASS`: acceptance passed with evidence.
-- `CANDIDATE_PARTIAL`: useful progress, not enough evidence or score.
-- `CANDIDATE_REJECTED`: attempted path failed, another route exists.
-- `CANDIDATE_BLOCKED`: no safe next action without human input.
+No score, build, log, screenshot count, or worker declaration can directly produce `CANDIDATE_PASS`.

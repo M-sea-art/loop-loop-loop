@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LoopAcceptanceContract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "contract_id",
+    "status",
+    "risk_level",
+    "user_intent",
+    "artifact_modalities",
+    "outcomes",
+    "scenarios",
+    "prohibited_failures",
+    "forbidden_proxies",
+    "gates",
+    "change_control"
+  ],
+  "properties": {
+    "contract_version": {"const": 1},
+    "contract_id": {"type": "string", "minLength": 3},
+    "status": {"enum": ["DRAFT", "FROZEN"]},
+    "risk_level": {"enum": ["L0", "L1", "L2", "L3", "L4"]},
+    "user_intent": {"type": "string", "minLength": 8},
+    "artifact_modalities": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"enum": ["general", "code", "visual", "data", "document", "automation", "research"]}
+    },
+    "outcomes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "description", "scenarios", "evidence_types"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^OUT-[A-Za-z0-9_-]+$"},
+          "description": {"type": "string", "minLength": 8},
+          "scenarios": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+          "evidence_types": {"type": "array", "minItems": 1, "items": {"type": "string"}}
+        }
+      }
+    },
+    "scenarios": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "description", "required"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^SCN-[A-Za-z0-9_-]+$"},
+          "description": {"type": "string", "minLength": 8},
+          "required": {"type": "boolean"}
+        }
+      }
+    },
+    "prohibited_failures": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "description"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^FAIL-[A-Za-z0-9_-]+$"},
+          "description": {"type": "string", "minLength": 8}
+        }
+      }
+    },
+    "forbidden_proxies": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 8}},
+    "gates": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["automation", "independent_review", "challenge", "human_review"],
+      "properties": {
+        "automation": {"type": "boolean"},
+        "independent_review": {"const": true},
+        "challenge": {"const": true},
+        "human_review": {"enum": ["optional", "risk_based", "required"]}
+      }
+    },
+    "change_control": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["frozen"],
+      "properties": {
+        "frozen": {"type": "boolean"},
+        "reason": {"type": "string"},
+        "frozen_at": {"type": "string"},
+        "frozen_by": {"type": "string"}
+      }
+    }
+  }
+}

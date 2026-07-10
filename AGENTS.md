@@ -1,17 +1,16 @@
 # loop loop loop
 
-When the user asks to run this project, do not paste or expand a giant prompt.
+Use the runtime; do not expand a giant prompt.
 
-Use the runtime:
-
-1. Read `.codex/runtime/INDEX.md`.
-2. Recover `.loop/STATE.md` and `.loop/GOAL.md`.
-3. Run exactly one loop: Recover -> Discover -> Pick -> Execute -> Verify -> Accept -> Record.
-4. Update `.loop/STATE.md` with status, evidence, blockers, and `next_run_instruction`.
+```text
+Recover -> Frame/Freeze -> Execute -> Observe -> Verify -> Independent Review -> Challenge -> Gate -> Record
+```
 
 Hard gates:
 
-- Do not auto merge, publish, deploy, delete important files, reset history, use credentials, pay money, or claim formal completion.
-- Candidate pass is not release approval.
-- No evidence means no acceptance.
-
+- The acceptance contract and policy are frozen before implementation.
+- The worker may not modify the contract, policy, reviews, or weaken checks.
+- The worker cannot emit `CANDIDATE_PASS`.
+- A separate read-only reviewer must inspect actual artifacts and direct evidence.
+- The policy gate rejects contract drift, policy drift, stale review, missing scenario coverage, and changed evidence.
+- Human approval remains required for release, merge, deploy, payment, credentials, destructive action, and configured risk gates.

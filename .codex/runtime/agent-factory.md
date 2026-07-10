@@ -1,17 +1,11 @@
 # Agent Factory
 
-Agents are temporary roles created from capability gaps.
+Roles are temporary capabilities with explicit permissions.
 
-Create a role only when it changes the result:
+- framer: reads goal and project, writes only a candidate acceptance contract
+- worker: changes implementation and records direct evidence
+- verifier: runs deterministic checks but cannot approve
+- independent reviewer: fresh process, read-only, challenges final artifacts
+- policy gate: deterministic state promotion from hashes and evidence
 
-- builder: makes the change
-- verifier: rejects without evidence
-- researcher: resolves a missing fact
-- reviewer: checks risk or UX
-- integrator: connects already-built parts
-
-The maker cannot approve its own work.
-
-If real subagents are unavailable, simulate roles in the same run and record that in `.loop/STATE.md`.
-
-v0 records the needed role and whether it was simulated. Temporary roles do not persist unless experience shows repeated value.
+The maker cannot approve its own work. Simulated roles inside the same context may help diagnosis, but they are not independent and cannot satisfy the independent-review gate.

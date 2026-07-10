@@ -1,17 +1,16 @@
 # Experience Engine
 
-Experience becomes future runtime behavior.
+Record reusable causes, detection methods, and regression cases rather than only local symptoms.
 
-After each loop, append to `.loop/EXPERIENCE.md`:
+Seed patterns include:
 
-- what worked
-- what failed
-- reusable command, skill, tool, or pattern
-- capability gap discovered
-- whether the lesson should become a skill
+- `PROXY_PASS_REALITY_FAIL`
+- `SELF_CERTIFIED_COMPLETION`
+- `RUBRIC_DRIFT`
+- `STATE_COVERAGE_GAP`
+- `PERCEPTUAL_BLINDNESS`
+- `SEMANTIC_SCOPE_CONFLICT`
+- `EVIDENCE_QUANTITY_FALLACY`
+- `PREMATURE_COMPLETION`
 
-Only promote repeated lessons to skills. One-off notes stay in experience.
-
-v0 appends experience only. It does not write global skills automatically.
-
-Use `python scripts/loop.py distill-experience .` to write reviewed candidate skills under `.loop/skill-candidates/`. Promotion to global skills remains a human decision.
+Promote a lesson only after repetition or a high-severity confirmed failure. Preserve the counterexample that taught the lesson.

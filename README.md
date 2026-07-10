@@ -1,119 +1,158 @@
 # loop loop loop
 
-**It doesn't stop until it's done.**
+**It doesn't stop until the result is independently verified.**
 
-`loop loop loop` is a tiny Codex Loop Runtime. It is not a long prompt repo.
-
-The prompt starts the runtime. The runtime owns the loop.
+`loop loop loop` is a small Codex Loop Runtime. The prompt starts the runtime; durable contracts, evidence, independent review, and a policy gate own completion.
 
 ```text
-Prompt -> Runtime -> State -> Capability -> Verify -> Experience -> Repeat
+Goal
+  -> Independent Framing
+  -> Frozen Acceptance Contract
+  -> Worker
+  -> Direct Evidence Ledger
+  -> Independent Read-only Review
+  -> Adversarial Challenge
+  -> Deterministic Policy Gate
+  -> Experience
 ```
 
-## What It Is
+## Why this upgrade exists
 
-- a short startup prompt
-- a file-backed runtime under `.codex/runtime/`
-- persistent state under `.loop/`
-- a local launcher in `scripts/loop.py`
-- a place for capabilities and experience to become reusable skills
+A build can pass while the product fails. Tests can pass while their rubric misses the user's real outcome. A maker can generate many screenshots or logs without actually inspecting what they prove.
 
-## Quick Start
+Loop therefore treats process metrics as supporting signals, not acceptance. A worker can implement and verify, but cannot approve itself. `CANDIDATE_PASS` is available only after direct evidence, a fresh read-only review, challenge coverage, and the policy gate agree on the same frozen workspace.
+
+## Quick start
 
 ```bash
 git clone https://github.com/M-sea-art/loop-loop-loop.git
 cd loop-loop-loop
 python scripts/loop.py install C:\path\to\your\project
-python scripts/loop.py check C:\path\to\your\project
-python scripts/loop.py discover C:\path\to\your\project
-python scripts/loop.py run C:\path\to\your\project
-python scripts/loop.py run-loop C:\path\to\your\project --max-iterations 10
 ```
 
-Inside this repository:
+In the target project:
 
 ```bash
-python scripts/loop.py init
-python scripts/loop.py prompt
-python scripts/loop.py check
+# 1. Define the real goal in .loop/GOAL.md
+python scripts/loop.py frame .
+
+# Or edit the draft contract and freeze it explicitly
+python scripts/loop.py freeze-contract .
+
+# 2. Run one worker loop
+python scripts/loop.py run .
+
+# 3. Record direct claim/scenario evidence
+python scripts/loop.py record-evidence . \
+  --claim-id OUT-001 \
+  --scenario-id SCN-001 \
+  --evidence-type test \
+  --artifact .loop/evidence/test-output.txt \
+  --notes "Behavioral test passed"
+
+# 4. Run a fresh read-only review and the deterministic gate
+python scripts/loop.py review .
+python scripts/loop.py gate .
+
+# Or orchestrate the full sequence
+python scripts/loop.py run-loop . --max-iterations 10
 ```
 
-Run one Codex loop:
+Inspect prompts without invoking Codex:
 
 ```bash
-python scripts/loop.py run
+CODEX_DRY_RUN=1 python scripts/loop.py frame .
+CODEX_DRY_RUN=1 python scripts/loop.py run .
+CODEX_DRY_RUN=1 python scripts/loop.py review .
 ```
 
-Dry-run through the shell wrapper:
-
-```bash
-CODEX_DRY_RUN=1 bash scripts/loop_once.sh .
-```
-
-## Runtime Shape
+## Runtime shape
 
 ```text
 .codex/runtime/
   INDEX.md
   orchestrator.md
+  recovery.md
   capability.md
   agent-factory.md
+  contract.md
   verification.md
+  observation.md
+  challenge.md
   acceptance.md
   experience.md
-  recovery.md
+  acceptance_contract.schema.json
+  loop_result.schema.json
+  review_result.schema.json
 
 .loop/
   GOAL.md
   GOALS.md
+  ACCEPTANCE_CONTRACT.json
+  contract.lock.json
+  EVIDENCE_LEDGER.jsonl
   REPORT.md
-  STATE.md
-  CAPABILITIES.md
-  AUTOMATION_HANDOFF.md
-  EXPERIENCE.md
+  REVIEW.md
   ACCEPTANCE.md
-  reports/
+  FAILURE_PATTERNS.md
+  reviews/
   evidence/
+  reports/
 ```
 
-The runtime keeps the prompt small:
+## Lifecycle
 
-```text
-Start Runtime.
-Read .codex/runtime/INDEX.md.
-Recover .loop/STATE.md.
-Continue one loop.
-```
+| State | Meaning | Who can produce it |
+| --- | --- | --- |
+| `CONTRACT_DRAFT` | Real outcomes are not frozen | framer / human |
+| `IMPLEMENTED` | Candidate implementation exists | worker |
+| `AUTOMATION_VERIFIED` | Worker checks and direct evidence coverage are complete | worker + runtime |
+| `REVIEW_FAILED` | Independent review or challenge found a material gap | reviewer + gate |
+| `NEEDS_HUMAN` | Automated and independent gates passed, but risk requires a person | gate |
+| `INDEPENDENTLY_VERIFIED` | Frozen contract, direct evidence, review, and challenge all pass | policy gate |
 
-## Loop Contract
+The worker schema has no acceptance field and cannot return `CANDIDATE_PASS`.
 
-Each run does one high-value loop:
+## What the gate checks
 
-```text
-Recover -> Discover -> Pick -> Execute -> Verify -> Accept -> Record
-```
+- contract and policy hashes have not changed;
+- every required outcome/scenario pair has a valid evidence record;
+- evidence artifacts exist and still match their hashes;
+- evidence types match the artifact modality;
+- review came from a separate read-only Codex execution;
+- review covered every required pair;
+- no P0/P1 finding remains;
+- at least one passing challenge exists for every modality;
+- the review matches the current workspace and ledger fingerprints;
+- risk-based human approval is respected.
 
-It stops only with one of:
+## Failure patterns
 
-- `CANDIDATE_PASS`
-- `CANDIDATE_PARTIAL` with a written `next_run_instruction`
-- `CANDIDATE_BLOCKED` with the smallest unblock step
-- a human gate such as credentials, payment, production deploy, destructive reset, or formal approval
+The runtime starts with reusable patterns learned from real false-completion failures:
 
-## Design Bias
+- `PROXY_PASS_REALITY_FAIL`
+- `SELF_CERTIFIED_COMPLETION`
+- `RUBRIC_DRIFT`
+- `STATE_COVERAGE_GAP`
+- `PERCEPTUAL_BLINDNESS`
+- `SEMANTIC_SCOPE_CONFLICT`
+- `EVIDENCE_QUANTITY_FALLACY`
+- `PREMATURE_COMPLETION`
 
-Prompt gets shorter.
-Runtime gets stronger.
-Experience becomes skill.
+The goal is not to hard-code one UX checklist. It is to prevent any artifact from being accepted through self-certification or proxy metrics.
 
 ## Commands
 
-- `install <project>` copies the runtime, project skill, templates, and launcher scripts into a project.
-- `init <project>` creates `.loop/` state without overwriting existing state.
-- `prompt` prints the short startup prompt.
-- `check <project>` checks runtime files, state files, Codex CLI, Git, and obvious secret patterns.
-- `discover <project>` writes a local capability scan to `.loop/CAPABILITIES.md`.
-- `score <project>` applies the minimum no-evidence-no-pass rule.
-- `distill-experience <project>` writes repeated local lessons to `.loop/skill-candidates/`.
-- `run <project>` runs one `codex exec` loop with the result schema and writes `.loop/reports/`.
-- `run-loop <project>` repeats one-round runs until pass, blocked, or the max iteration limit.
+- `install <project>`: install runtime, templates, skill, and scripts.
+- `init <project>`: initialize state directories and missing templates.
+- `frame <project>`: use a separate read-only framing process to create and freeze the contract.
+- `freeze-contract <project>`: validate and freeze an explicitly edited contract.
+- `record-evidence <project>`: append a hash-bound direct evidence record.
+- `run <project>`: run one worker loop.
+- `score <project>`: show diagnostic scores and evidence coverage; never promotes acceptance.
+- `review <project>`: run a fresh read-only independent reviewer and challenge.
+- `gate <project>`: apply deterministic promotion policy.
+- `run-loop <project>`: orchestrate worker, review, gate, and repair iterations.
+- `check <project>`: validate runtime files, schemas, state, secrets, and contract health.
+- `discover <project>`: refresh local capabilities.
+- `distill-experience <project>`: produce reviewed candidate skills from repeated lessons.
