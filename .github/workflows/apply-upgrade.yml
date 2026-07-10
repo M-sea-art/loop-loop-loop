@@ -1,0 +1,61 @@
+name: apply-runtime-upgrade
+
+on:
+  push:
+    branches:
+      - upgrade/independent-evidence-gates
+    paths:
+      - "upgrade.bundle.part-*"
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: upgrade/independent-evidence-gates
+          fetch-depth: 0
+
+      - name: Wait for complete bundle
+        id: bundle
+        shell: bash
+        run: |
+          complete=true
+          for part in 00 01 02 03 04; do
+            if [[ ! -f "upgrade.bundle.part-${part}" ]]; then
+              complete=false
+            fi
+          done
+          echo "complete=${complete}" >> "$GITHUB_OUTPUT"
+          if [[ "$complete" != "true" ]]; then
+            echo "Bundle is incomplete; a later part push will retry."
+          fi
+
+      - name: Verify and extract bundle
+        if: steps.bundle.outputs.complete == 'true'
+        shell: bash
+        run: |
+          cat upgrade.bundle.part-* | base64 -d > /tmp/loop-upgrade.tar.gz
+          echo "7b4a74e0a9fef58d234394f6efeb2ae8f2e0b33f36074a1674d3c2230ffb021d  /tmp/loop-upgrade.tar.gz" | sha256sum -c -
+          tar -xzf /tmp/loop-upgrade.tar.gz -C .
+          python scripts/loop.py init .
+          python -m unittest discover -s tests -v
+          python -m py_compile scripts/loop.py
+          python scripts/loop.py check .
+
+      - name: Commit upgrade
+        if: steps.bundle.outputs.complete == 'true'
+        shell: bash
+        run: |
+          rm -f upgrade.bundle.part-*
+          git config user.name "loop-runtime-upgrader"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "Add independent evidence-gated acceptance runtime"
+          git push origin HEAD:upgrade/independent-evidence-gates
