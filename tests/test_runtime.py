@@ -75,6 +75,10 @@ class RuntimeTestCase(unittest.TestCase):
         assert isinstance(detail, dict)
         return detail
 
+    def test_init_seeds_plan_and_evidence_templates(self) -> None:
+        self.assertTrue((self.project / ".loop" / "PLAN.md").is_file())
+        self.assertTrue((self.project / ".loop" / "EVIDENCE.md").is_file())
+
     def add_artifact_evidence(self, lock: dict, *, evidence_type: str = "test") -> None:
         for scenario in ("SCN-001", "SCN-EDGE"):
             artifact = self.project / ".loop" / "evidence" / f"{scenario}.txt"
