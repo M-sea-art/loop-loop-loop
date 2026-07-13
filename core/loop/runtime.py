@@ -1,19 +1,15 @@
-"""Minimal autonomous goal completion loop.
+"""Public runtime facade for the goal lifecycle."""
 
-Flow:
-Goal -> Plan -> Execute -> Verify
+from __future__ import annotations
 
-The runtime coordinates only. It never self-approves completion.
-"""
+from pathlib import Path
+
+from core.goal.lifecycle import GoalLifecycle, GoalRunResult
 
 
 class LoopRuntime:
-    def __init__(self, planner, executor, judge):
-        self.planner = planner
-        self.executor = executor
-        self.judge = judge
+    def __init__(self, workspace: Path | str):
+        self.lifecycle = GoalLifecycle(workspace)
 
-    def run_once(self, goal):
-        plan = self.planner.create_plan(goal)
-        results = [self.executor.execute(step) for step in plan]
-        return self.judge.verify(goal, results)
+    def run_once(self, goal_file: Path | str) -> GoalRunResult:
+        return self.lifecycle.run(goal_file)
