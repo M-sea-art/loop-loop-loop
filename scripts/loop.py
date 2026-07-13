@@ -541,19 +541,21 @@ def parse_ledger(project: Path) -> tuple[list[dict[str, Any]], list[str]]:
 
 
 def relative_artifact(project: Path, artifact: str) -> tuple[str, Path | None]:
+    root = project.resolve()
     candidate = Path(artifact)
     if candidate.is_absolute():
         try:
-            rel = candidate.resolve().relative_to(project)
+            resolved = candidate.resolve()
+            rel = resolved.relative_to(root)
         except ValueError:
             return artifact, None
-        return str(rel).replace("\\", "/"), candidate.resolve()
-    resolved = (project / candidate).resolve()
+        return str(rel).replace("\\", "/"), resolved
+    resolved = (root / candidate).resolve()
     try:
-        resolved.relative_to(project)
+        rel = resolved.relative_to(root)
     except ValueError:
         return artifact, None
-    return str(resolved.relative_to(project)).replace("\\", "/"), resolved
+    return str(rel).replace("\\", "/"), resolved
 
 
 def record_evidence(

@@ -101,6 +101,7 @@ artifact, and prints `VERIFIED_COMPLETE` only after the policy gate passes.
 ## Core Documents
 
 - `docs/looplooploop-v2-vision.md` — product direction and constraints
+- `docs/cross-project-obstacle-loop.md` — evidence-gated intake and repair of reusable blockers found in managed projects
 - `.loop/GOAL.md` — desired outcome
 - `.loop/PLAN.md` — ordered execution plan
 - `.loop/EVIDENCE.md` — evidence requirements and observations
