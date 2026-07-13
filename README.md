@@ -88,10 +88,22 @@ Run execution:
 python scripts/loop.py run-loop . --max-iterations 10
 ```
 
+Run the minimal end-to-end goal demo:
+
+```bash
+python examples/simple_goal/run_example.py
+```
+
+The demo reads `examples/simple_goal/GOAL.md`, creates the requested file in a
+temporary workspace, collects direct file evidence, independently re-reads the
+artifact, and prints `VERIFIED_COMPLETE` only after the policy gate passes.
+
 ## Core Documents
 
 - `docs/looplooploop-v2-vision.md` — product direction and constraints
 - `.loop/GOAL.md` — desired outcome
+- `.loop/PLAN.md` — ordered execution plan
+- `.loop/EVIDENCE.md` — evidence requirements and observations
 - `.loop/ACCEPTANCE_CONTRACT.json` — frozen acceptance rules
 - `.loop/EVIDENCE_LEDGER.jsonl` — direct evidence
 

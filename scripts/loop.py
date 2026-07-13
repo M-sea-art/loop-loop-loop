@@ -28,6 +28,8 @@ TEMPLATES = [
     "EXPERIENCE.md",
     "ACCEPTANCE.md",
     "ACCEPTANCE_CONTRACT.json",
+    "PLAN.md",
+    "EVIDENCE.md",
     "EVIDENCE_LEDGER.jsonl",
     "REVIEW.md",
     "FAILURE_PATTERNS.md",

@@ -40,3 +40,19 @@ Do not add complexity unless it measurably improves:
 - Creating unnecessary agent hierarchies
 - Optimizing reports instead of outcomes
 - Declaring completion without evidence
+
+## Implemented Foundation
+
+- Goal Contract
+- Planner
+- Executor
+- Evidence Ledger
+- Independent Judge
+- Policy Gate
+- Goal Lifecycle
+- End-to-End Goal Demo
+
+The reference demo proves one deliberately narrow goal: create a file whose
+content exactly matches the goal contract. The executor cannot declare success;
+the collector reads the artifact directly, the judge re-reads it and rejects
+stale evidence, and only the policy gate returns `VERIFIED_COMPLETE`.
