@@ -92,4 +92,6 @@ Append-only ledger for reusable LoopLoopLoop defects admitted by
   remain visible without poisoning current PASS coverage.
 - Gate: `PASS`; focused reproduction and full suite passed 19/19, independent
   challenge passed, and `git diff --check` passed.
-- Commit and push: deferred to the next eligible two-hour sync window.
+- Commit and push: `PASS`; verified repair committed as `328b377` and pushed
+  with `git push origin HEAD:refs/heads/looplooploop` during the
+  `2026-07-14T01:51Z` sync window.
