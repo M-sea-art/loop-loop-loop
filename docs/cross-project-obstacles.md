@@ -50,3 +50,46 @@ Append-only ledger for reusable LoopLoopLoop defects admitted by
   ledger. No credentials, private project content, or containment regression
   were found.
 - Gate: `PASS` after the governance correction and one final verification run.
+
+## Append-only ledger current-contract recovery — 2026-07-14
+
+- Discovery time: `2026-07-14T00:10:00Z`.
+- Source tasks: `019f5ba5-9a4e-7d53-b6a3-d888fa01760c` and
+  `019f5a6d-f1cd-73b3-9a94-8d3b4683227a`.
+- Classification: `GATE_DEFECT`.
+- Sanitized symptom: a current contract with complete direct PASS evidence was
+  kept at `NEEDS_EVIDENCE` because append-only ledger rows from an older
+  contract hash and earlier current-contract FAIL observations were counted as
+  permanently invalid.
+- Direct evidence: the voice project gate reported historical failures in
+  `.loop/EVIDENCE_LEDGER.jsonl` as blocking despite current release and mobile
+  summaries passing; the dashboard project reproduced the same condition and
+  reached `missing_pairs=[]`, `modality_missing=[]`, `invalid_records=[]` only
+  after filtering history from current-contract coverage.
+- Reproduction: append one old-contract PASS row and one current-contract FAIL
+  row after two valid current-contract PASS rows, then call
+  `evaluate_evidence_coverage`; the unfixed runtime returned `complete=false`.
+- Shared root cause: `evaluate_evidence_coverage` validated every append-only
+  row against the current lock before separating historical and nonpassing
+  observations from candidate PASS evidence.
+- Repair: preserve old-contract rows in `historical_records` and current
+  non-PASS rows in `nonpassing_records`, but compute current coverage and
+  blocking `invalid_records` only from current-contract PASS candidates.
+- Changed files: `scripts/loop.py`, `tests/test_runtime.py`, and this ledger.
+- Verification: the focused regression passed; full local suite passed 19/19.
+  Existing tampered-current-artifact coverage remains green and still blocks.
+- Automatic access approval: initialized the skill repository's local
+  CodeGraph index with `codegraph init -i` because structural inspection was
+  otherwise unavailable; result was 15 files, 240 nodes, 225 edges. The
+  generated `.codegraph/` directory is local-only and is not an authorized
+  commit path.
+- Independent review and adversarial challenge: initial verdict `NOT_COMPLETE`;
+  malformed rows missing `contract_hash` or `result` were incorrectly
+  downgraded before structural validation. After the correction, fresh review
+  returned `PASS`: missing discriminators, invalid JSON, current artifact
+  tampering, wrong evidence types, modality mismatch, and missing pairs all
+  remain blocking; valid old-contract PASS and valid current-contract FAIL rows
+  remain visible without poisoning current PASS coverage.
+- Gate: `PASS`; focused reproduction and full suite passed 19/19, independent
+  challenge passed, and `git diff --check` passed.
+- Commit and push: deferred to the next eligible two-hour sync window.

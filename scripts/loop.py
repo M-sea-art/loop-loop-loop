@@ -82,6 +82,19 @@ MODALITY_EVIDENCE = {
     "automation": {"end_to_end", "state_assertion", "replay"},
     "research": {"source_crosscheck", "citation", "primary_source"},
 }
+EVIDENCE_RECORD_REQUIRED_FIELDS = {
+    "record_id",
+    "contract_hash",
+    "claim_id",
+    "scenario_id",
+    "evidence_type",
+    "artifact",
+    "artifact_sha256",
+    "result",
+    "producer_role",
+    "observed_at",
+    "direct",
+}
 
 PLACEHOLDER_RE = re.compile(
     r"(describe the|replace with|none yet|pending|todo|tbd|define the first|candidate outcome|real operating state)",
@@ -622,20 +635,7 @@ def required_pairs(contract: dict[str, Any]) -> set[tuple[str, str]]:
 
 
 def record_is_valid(project: Path, record: dict[str, Any], contract_hash: str) -> tuple[bool, str]:
-    required = {
-        "record_id",
-        "contract_hash",
-        "claim_id",
-        "scenario_id",
-        "evidence_type",
-        "artifact",
-        "artifact_sha256",
-        "result",
-        "producer_role",
-        "observed_at",
-        "direct",
-    }
-    missing = sorted(required - record.keys())
+    missing = sorted(EVIDENCE_RECORD_REQUIRED_FIELDS - record.keys())
     if missing:
         return False, f"missing fields: {missing}"
     if record.get("contract_hash") != contract_hash:
@@ -656,12 +656,25 @@ def evaluate_evidence_coverage(project: Path, contract: dict[str, Any], lock: di
     records, parse_errors = parse_ledger(project)
     valid_records: list[dict[str, Any]] = []
     invalid_records: list[dict[str, str]] = []
+    historical_records: list[dict[str, str]] = []
+    nonpassing_records: list[dict[str, str]] = []
     for record in records:
+        record_id = str(record.get("record_id", "?"))
+        missing = sorted(EVIDENCE_RECORD_REQUIRED_FIELDS - record.keys())
+        if missing:
+            invalid_records.append({"record_id": record_id, "reason": f"missing fields: {missing}"})
+            continue
+        if record.get("contract_hash") != str(lock["contract_hash"]):
+            historical_records.append({"record_id": record_id, "reason": "contract hash mismatch"})
+            continue
+        if str(record.get("result", "")).upper() != "PASS":
+            nonpassing_records.append({"record_id": record_id, "reason": "result is not PASS"})
+            continue
         valid, reason = record_is_valid(project, record, str(lock["contract_hash"]))
         if valid:
             valid_records.append(record)
         else:
-            invalid_records.append({"record_id": str(record.get("record_id", "?")), "reason": reason})
+            invalid_records.append({"record_id": record_id, "reason": reason})
 
     expected = required_pairs(contract)
     observed = {(str(item.get("claim_id")), str(item.get("scenario_id"))) for item in valid_records}
@@ -688,6 +701,8 @@ def evaluate_evidence_coverage(project: Path, contract: dict[str, Any], lock: di
         "modality_missing": modality_missing,
         "parse_errors": parse_errors,
         "invalid_records": invalid_records,
+        "historical_records": historical_records,
+        "nonpassing_records": nonpassing_records,
         "type_errors": type_errors,
         "valid_record_ids": [item.get("record_id") for item in valid_records],
     }

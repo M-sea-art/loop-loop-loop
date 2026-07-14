@@ -209,6 +209,40 @@ class RuntimeTestCase(unittest.TestCase):
         self.assertEqual(result["candidate_status"], "CANDIDATE_PASS")
         self.assertTrue(result["accepted"])
 
+    def test_historical_and_nonpassing_records_do_not_poison_current_pass(self) -> None:
+        lock = self.freeze()
+        self.add_artifact_evidence(lock)
+        ledger = loop.ledger_path(self.project)
+        records = [json.loads(line) for line in ledger.read_text(encoding="utf-8").splitlines()]
+        historical = dict(records[0], record_id="EV-HIST", contract_hash="old-contract")
+        failed = dict(records[0], record_id="EV-FAIL", result="FAIL")
+        with ledger.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(historical) + "\n")
+            handle.write(json.dumps(failed) + "\n")
+
+        contract = loop.load_json(loop.contract_path(self.project))
+        coverage = loop.evaluate_evidence_coverage(self.project, contract, lock)
+
+        self.assertTrue(coverage["complete"], coverage)
+        self.assertEqual([item["record_id"] for item in coverage["historical_records"]], ["EV-HIST"])
+        self.assertEqual([item["record_id"] for item in coverage["nonpassing_records"]], ["EV-FAIL"])
+        self.assertEqual(coverage["invalid_records"], [])
+
+        missing_hash = {key: value for key, value in records[0].items() if key != "contract_hash"}
+        missing_hash["record_id"] = "EV-NO-HASH"
+        missing_result = {key: value for key, value in records[0].items() if key != "result"}
+        missing_result["record_id"] = "EV-NO-RESULT"
+        with ledger.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(missing_hash) + "\n")
+            handle.write(json.dumps(missing_result) + "\n")
+
+        coverage = loop.evaluate_evidence_coverage(self.project, contract, lock)
+        self.assertFalse(coverage["complete"], coverage)
+        self.assertEqual(
+            [item["record_id"] for item in coverage["invalid_records"]],
+            ["EV-NO-HASH", "EV-NO-RESULT"],
+        )
+
     def test_review_becomes_stale_after_workspace_change(self) -> None:
         lock = self.freeze()
         self.add_artifact_evidence(lock)
