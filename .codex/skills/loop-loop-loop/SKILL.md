@@ -12,10 +12,15 @@ Procedure:
 1. Read `.codex/runtime/INDEX.md`.
 2. Recover `.loop/STATE.md`, the contract lock, evidence ledger, and latest independent review.
 3. Frame and freeze acceptance before implementation when no valid contract exists.
-4. Run one worker loop only.
-5. Record direct outcome/scenario evidence.
-6. Run a fresh read-only independent review and challenge when evidence coverage is complete.
-7. Let `python scripts/loop.py gate .` determine promotion.
-8. If not independently verified, write the smallest evidence-backed next instruction.
+4. Read `adaptive-execution.md`, default to the current Codex agent, and never
+   treat complexity advice as authorization to create collaborators.
+5. Run one worker loop only. If the user explicitly authorized collaboration,
+   use only Codex-native delegation and bounded task contracts.
+6. Record direct outcome/scenario evidence.
+7. Run a fresh read-only independent review and challenge when evidence coverage is complete.
+8. Let `python scripts/loop.py gate .` determine promotion.
+9. If not independently verified, write the smallest evidence-backed next instruction.
 
-The worker cannot approve itself. Scores and process metrics cannot produce PASS.
+The worker cannot approve itself. Scores and process metrics cannot produce
+PASS. Do not change Codex defaults, global configuration, permissions, or
+approval gates.

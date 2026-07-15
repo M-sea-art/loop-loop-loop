@@ -1,10 +1,15 @@
 # loop loop loop
 
-**Autonomous Goal Completion Engine — it doesn't stop until the result is independently verified.**
+**Adaptive Goal Completion Runtime — it starts simple and expands only within a user-approved execution policy.**
 
 `loop loop loop` is a small Codex Loop Runtime designed around one fundamental user need:
 
 > AI should understand a desired outcome, define a complete goal, execute continuously, verify reality, and improve until the goal is truly achieved.
+
+It adapts to Codex instead of replacing it. The default is the current Codex
+agent running the normal loop. Complexity analysis may recommend specialist
+collaboration, but only explicit user authorization can permit assisted or
+swarm execution, and actual delegation remains native to the active Codex host.
 
 ## Core Model
 
@@ -68,6 +73,25 @@ Goal
  → Completion or Improvement Loop
 ```
 
+## Adaptive Execution
+
+```text
+Complexity Recommendation + User Authorization Ceiling
+                         ↓
+             Single / Assisted / Swarm
+                         ↓
+                 Codex-native execution
+                         ↓
+              Evidence → Judge → Gate
+```
+
+- `single` is always the default;
+- expert profiles are capability metadata, not agents;
+- collaboration uses bounded task contracts;
+- LoopLoopLoop never changes Codex configuration, permissions, approvals, or
+  model selection;
+- all execution modes converge on the same evidence and acceptance gates.
+
 ## Quick Start
 
 ```bash
@@ -102,6 +126,10 @@ artifact, and prints `VERIFIED_COMPLETE` only after the policy gate passes.
 
 - `docs/looplooploop-v2-vision.md` — product direction and constraints
 - `docs/cross-project-obstacle-loop.md` — evidence-gated intake and repair of reusable blockers found in managed projects
+- `docs/architecture-v3.md` — adaptive upper-layer architecture
+- `docs/multi-agent-mode.md` — optional collaboration and Codex boundary
+- `docs/complexity-routing.md` — deterministic recommendation and authorization
+- `docs/agent-contract.md` — bounded task and result contracts
 - `.loop/GOAL.md` — desired outcome
 - `.loop/PLAN.md` — ordered execution plan
 - `.loop/EVIDENCE.md` — evidence requirements and observations

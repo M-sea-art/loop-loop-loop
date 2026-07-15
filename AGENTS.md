@@ -8,6 +8,10 @@ Recover -> Frame/Freeze -> Execute -> Observe -> Verify -> Independent Review ->
 
 Hard gates:
 
+- Adapt to the active Codex runtime; do not replace its defaults, permissions,
+  approvals, models, or native delegation.
+- Default to the current agent. Complexity analysis may recommend assisted or
+  swarm execution, but only explicit user authorization may permit it.
 - The acceptance contract and policy are frozen before implementation.
 - The worker may not modify the contract, policy, reviews, or weaken checks.
 - The worker cannot emit `CANDIDATE_PASS`.
