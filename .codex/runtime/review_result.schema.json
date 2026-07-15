@@ -6,6 +6,7 @@
   "required": [
     "review_context_id",
     "reviewer_role",
+    "reviewer_track",
     "self_review",
     "contract_hash",
     "policy_hash",
@@ -21,13 +22,14 @@
   ],
   "properties": {
     "review_context_id": {"type": "string", "minLength": 8},
-    "reviewer_role": {"const": "independent_reviewer"},
-    "self_review": {"const": false},
+    "reviewer_role": {"type": "string", "const": "independent_reviewer"},
+    "reviewer_track": {"type": "string", "enum": ["independent", "adversarial", "contract"]},
+    "self_review": {"type": "boolean", "const": false},
     "contract_hash": {"type": "string", "minLength": 16},
     "policy_hash": {"type": "string", "minLength": 16},
     "workspace_fingerprint": {"type": "string", "minLength": 16},
     "evidence_ledger_hash": {"type": "string", "minLength": 16},
-    "verdict": {"enum": ["PASS", "FAIL", "BLOCKED"]},
+    "verdict": {"type": "string", "enum": ["PASS", "FAIL", "BLOCKED"]},
     "reviewed_artifacts": {"type": "array", "items": {"type": "string"}},
     "claims": {
       "type": "array",
@@ -38,7 +40,7 @@
         "properties": {
           "claim_id": {"type": "string"},
           "scenario_id": {"type": "string"},
-          "verdict": {"enum": ["PASS", "FAIL", "BLOCKED"]},
+          "verdict": {"type": "string", "enum": ["PASS", "FAIL", "BLOCKED"]},
           "evidence_refs": {"type": "array", "items": {"type": "string"}},
           "reason": {"type": "string"}
         }
@@ -51,7 +53,7 @@
         "additionalProperties": false,
         "required": ["severity", "claim_id", "scenario_id", "summary", "evidence_refs"],
         "properties": {
-          "severity": {"enum": ["P0", "P1", "P2", "P3"]},
+          "severity": {"type": "string", "enum": ["P0", "P1", "P2", "P3"]},
           "claim_id": {"type": "string"},
           "scenario_id": {"type": "string"},
           "summary": {"type": "string"},
@@ -64,8 +66,8 @@
       "additionalProperties": false,
       "required": ["attempted", "verdict", "cases"],
       "properties": {
-        "attempted": {"const": true},
-        "verdict": {"enum": ["PASS", "FAIL", "BLOCKED"]},
+        "attempted": {"type": "boolean", "const": true},
+        "verdict": {"type": "string", "enum": ["PASS", "FAIL", "BLOCKED"]},
         "cases": {
           "type": "array",
           "minItems": 1,
@@ -75,11 +77,11 @@
             "required": ["id", "modality", "target", "hypothesis", "method", "verdict", "evidence_refs"],
             "properties": {
               "id": {"type": "string"},
-              "modality": {"enum": ["general", "code", "visual", "data", "document", "automation", "research"]},
+              "modality": {"type": "string", "enum": ["general", "code", "visual", "data", "document", "automation", "research"]},
               "target": {"type": "string"},
               "hypothesis": {"type": "string"},
               "method": {"type": "string"},
-              "verdict": {"enum": ["PASS", "FAIL", "BLOCKED"]},
+              "verdict": {"type": "string", "enum": ["PASS", "FAIL", "BLOCKED"]},
               "evidence_refs": {"type": "array", "items": {"type": "string"}}
             }
           }
