@@ -80,7 +80,8 @@
         "automation": {"type": "boolean"},
         "independent_review": {"const": true},
         "challenge": {"const": true},
-        "human_review": {"enum": ["optional", "risk_based", "required"]}
+        "human_review": {"enum": ["optional", "risk_based", "required"]},
+        "review_standard": {"enum": ["single", "dual_blind"]}
       }
     },
     "change_control": {

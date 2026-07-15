@@ -122,6 +122,20 @@ VOLATILE_FILES = {
     ".loop/REVIEW_CONTEXT.json",
 }
 
+REGISTRY_KEYS = {"schema_version", "projects"}
+PROJECT_REGISTRY_KEYS = {"id", "name", "root", "project_goal", "constitution", "state"}
+PATROL_FILES = (
+    "AGENTS.md",
+    ".looploop/CONSTITUTION.md",
+    ".looploop/project-completion-plan.md",
+    ".loop/STATE.md",
+    ".loop/PLAN.md",
+    ".loop/EVIDENCE.md",
+    ".loop/EVIDENCE_LEDGER.jsonl",
+    ".loop/contract.lock.json",
+    ".codex/runtime/INDEX.md",
+)
+
 
 class ContractError(ValueError):
     pass
@@ -207,6 +221,15 @@ def write_json(path: Path, value: Any) -> None:
     path.write_text(json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
+def write_json_atomic(path: Path, value: Any) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+    with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=path.parent, delete=False) as handle:
+        handle.write(payload)
+        temp_path = Path(handle.name)
+    os.replace(temp_path, path)
+
+
 def sha256_bytes(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
 
@@ -234,6 +257,30 @@ def policy_fingerprint(project: Path) -> str:
             continue
         rows.append(f"{rel}:{sha256_file(path)}")
     return sha256_bytes("\n".join(rows).encode("utf-8"))
+
+
+def governance_fingerprint(project: Path) -> str | None:
+    rows: list[str] = []
+    for rel in (".looploop/CONSTITUTION.md", ".looploop/GLOBAL_POLICY.lock.json"):
+        path = project / rel
+        if path.is_file():
+            rows.append(f"{rel}:{sha256_file(path)}")
+    return sha256_bytes("\n".join(rows).encode("utf-8")) if rows else None
+
+
+def effective_policy_hash(project: Path, locked_policy_hash: str) -> str:
+    governance = governance_fingerprint(project)
+    if governance is None:
+        return locked_policy_hash
+    return sha256_bytes(f"{locked_policy_hash}\n{governance}".encode("utf-8"))
+
+
+def review_standard(project: Path, contract: dict[str, Any]) -> str:
+    configured = contract.get("gates", {}).get("review_standard")
+    if configured in {"single", "dual_blind"}:
+        return configured
+    constitution = text(project / ".looploop" / "CONSTITUTION.md")
+    return "dual_blind" if re.search(r"review_standard\s*:\s*dual_blind", constitution, re.I) else "single"
 
 
 def should_fingerprint(rel: str) -> bool:
@@ -370,6 +417,8 @@ def validate_contract(contract: dict[str, Any]) -> list[str]:
             errors.append("challenge gate must be true")
         if gates.get("human_review") not in {"optional", "risk_based", "required"}:
             errors.append("human_review must be optional, risk_based, or required")
+        if gates.get("review_standard", "single") not in {"single", "dual_blind"}:
+            errors.append("review_standard must be single or dual_blind")
 
     return errors
 
@@ -928,7 +977,7 @@ def run_worker(project: Path) -> int:
         return 127
 
 
-def review_context(project: Path) -> dict[str, Any]:
+def review_context(project: Path, track: str = "independent") -> dict[str, Any]:
     status = contract_status(project)
     if not status["ready"]:
         raise GateError("contract is not frozen and stable")
@@ -937,18 +986,21 @@ def review_context(project: Path) -> dict[str, Any]:
         "review_context_id": f"RVCTX-{uuid.uuid4().hex[:12]}",
         "created_at": now_iso(),
         "contract_hash": status["lock"]["contract_hash"],
-        "policy_hash": status["lock"]["policy_hash"],
+        "policy_hash": effective_policy_hash(project, status["lock"]["policy_hash"]),
         "workspace_fingerprint": workspace_fingerprint(project),
         "evidence_ledger_hash": ledger_hash(project),
         "git_head": git_head(project),
         "required_pairs": coverage["required_pairs"],
         "artifact_modalities": status["contract"].get("artifact_modalities", []),
+        "reviewer_track": track,
         "denied_claim_sources": [
             ".loop/REPORT.md self-evaluation",
             ".loop/STATE.md completion language",
             "worker scores",
             "build success without direct outcome evidence",
             "evidence quantity without inspection",
+            "builder conclusions",
+            "other reviewer conclusions",
         ],
     }
     write_json(project / ".loop" / "REVIEW_CONTEXT.json", context)
@@ -956,10 +1008,22 @@ def review_context(project: Path) -> dict[str, Any]:
 
 
 def review_prompt(project: Path, context: dict[str, Any]) -> str:
-    return f"""You are Loop's independent read-only reviewer and adversarial challenger.
+    track = context.get("reviewer_track", "independent")
+    role = {
+        "adversarial": "adversarial defect finder",
+        "contract": "frozen-contract verifier",
+        "independent": "independent reviewer and adversarial challenger",
+    }[str(track)]
+    focus = {
+        "adversarial": "Try to falsify the candidate, expose proxy evidence, regressions, missing states, and boundary violations.",
+        "contract": "Verify only whether raw evidence satisfies every frozen outcome, scenario, prohibition, and policy hash.",
+        "independent": "Verify the contract and actively try to falsify the candidate.",
+    }[str(track)]
+    return f"""You are Loop's {role}.
 
 This is a fresh review process. You did not implement the candidate. Do not edit any file, test, rule, contract, or artifact.
 Review the final observable result against `.loop/ACCEPTANCE_CONTRACT.json` and `.loop/REVIEW_CONTEXT.json`.
+Reviewer track: {track}
 Review context id: {context['review_context_id']}
 Contract hash: {context['contract_hash']}
 Policy hash: {context['policy_hash']}
@@ -967,14 +1031,20 @@ Workspace fingerprint: {context['workspace_fingerprint']}
 Evidence ledger hash: {context['evidence_ledger_hash']}
 
 Rules:
+- {focus}
+- The project root is monitored read-only. Use the external scratch working directory only for temporary files and test caches; never write the project root.
+- Do not read `.loop/REPORT.md`, worker reports, `.loop/REVIEW.md`, or any other reviewer output.
 - Treat worker reports, scores, build success, console cleanliness, screenshot counts, and completion language only as untrusted claims.
 - Inspect actual artifacts and direct evidence for every required outcome/scenario pair.
+- For every PASS claim, include in evidence_refs at least one exact project-relative artifact path from the current evidence ledger for that same claim/scenario pair (for example `.loop/evidence/...`); record IDs and live-check descriptions alone are not machine-bindable.
 - Reject stale, missing, changed, indirect, or semantically irrelevant evidence.
 - Use the artifact-appropriate modality: visual artifacts require rendered visual inspection; code requires runtime or behavioral checks; data requires recomputation/cross-checks; documents require rendered inspection; automation requires end-to-end state verification; research requires source cross-checking.
 - Actively try to falsify the candidate. Include at least one challenge case per artifact modality.
+- For every PASS challenge case, include in evidence_refs at least one exact project-relative artifact path from the current evidence ledger; hashes, record IDs, and prose observations may be additional refs but cannot replace the path.
 - Check combinations and semantic consistency, not only isolated fields.
 - A PASS requires all required claims and scenarios to pass, no P0/P1 finding, challenge PASS, and no unresolved material uncertainty.
 - Set reviewer_role to independent_reviewer and self_review to false.
+- Set reviewer_track to {track}.
 - Copy the exact context hashes into the result.
 
 Output only JSON conforming to `.codex/runtime/review_result.schema.json`.
@@ -989,6 +1059,8 @@ def validate_review_result(data: dict[str, Any], context: dict[str, Any]) -> lis
             errors.append(f"{field} does not match the runtime review context")
     if data.get("reviewer_role") != "independent_reviewer":
         errors.append("reviewer_role must be independent_reviewer")
+    if data.get("reviewer_track", "independent") != context.get("reviewer_track", "independent"):
+        errors.append("reviewer_track does not match the runtime review context")
     if data.get("self_review") is not False:
         errors.append("self_review must be false")
     if data.get("verdict") not in {"PASS", "FAIL", "BLOCKED"}:
@@ -999,10 +1071,66 @@ def validate_review_result(data: dict[str, Any], context: dict[str, Any]) -> lis
     return errors
 
 
-def review(project: Path) -> int:
+def codex_command_prefix() -> list[str] | None:
+    if os.name == "nt":
+        command_script = shutil.which("codex.cmd")
+        if command_script:
+            return [os.environ.get("COMSPEC", "cmd.exe"), "/d", "/s", "/c", command_script]
+        executable = shutil.which("codex.exe")
+        if executable:
+            return [executable]
+    executable = shutil.which("codex")
+    return [executable] if executable else None
+
+
+def review_exec_command(command_prefix: list[str], schema: Path, output_path: Path, scratch: Path) -> list[str]:
+    return command_prefix + [
+        "exec",
+        "--sandbox",
+        "danger-full-access",
+        "--skip-git-repo-check",
+        "--output-schema",
+        str(schema),
+        "-o",
+        str(output_path),
+        "-",
+    ]
+
+
+def review_mutation_guard(project: Path, context: dict[str, Any]) -> dict[str, str]:
+    status = contract_status(project)
+    if not status["ready"]:
+        raise GateError("contract changed while the independent review was running")
+    current = {
+        "contract_hash": str(status["lock"]["contract_hash"]),
+        "policy_hash": effective_policy_hash(project, status["lock"]["policy_hash"]),
+        "workspace_fingerprint": workspace_fingerprint(project),
+        "evidence_ledger_hash": ledger_hash(project),
+    }
+    expected = {field: str(context[field]) for field in current}
+    if current != expected:
+        changed = sorted(field for field in current if current[field] != expected[field])
+        raise GateError(f"review process mutated guarded project state: {changed}")
+    return current
+
+
+def reviewer_scratch_parent(project: Path) -> Path:
+    configured = os.environ.get("LOOP_REVIEW_SCRATCH_ROOT")
+    base = Path(configured).expanduser() if configured else Path.home() / "Documents" / "Codex" / "LoopReviewScratch"
+    project_resolved = project.resolve()
+    parent = (base / sha256_bytes(os.path.normcase(str(project_resolved)).encode("utf-8"))[:16]).resolve()
+    if parent == project_resolved or project_resolved in parent.parents:
+        raise GateError("reviewer scratch must be outside the read-only project root")
+    return parent
+
+
+def review(project: Path, track: str = "independent") -> int:
     init(project)
+    if track not in {"independent", "adversarial", "contract"}:
+        print(f"invalid reviewer track: {track}", file=sys.stderr)
+        return 3
     try:
-        context = review_context(project)
+        context = review_context(project, track)
     except GateError as exc:
         print(str(exc), file=sys.stderr)
         return 3
@@ -1011,39 +1139,63 @@ def review(project: Path) -> int:
         print(prompt_body)
         return 0
     schema = project / ".codex" / "runtime" / "review_result.schema.json"
-    with tempfile.NamedTemporaryFile(prefix="loop-review-", suffix=".json", delete=False) as temp:
-        output_path = Path(temp.name)
-    cmd = ["codex", "exec", "--sandbox", "read-only", "--output-schema", str(schema), "-o", str(output_path), "-"]
-    try:
-        code = subprocess.run(cmd, input=prompt_body, text=True, cwd=project).returncode
-    except FileNotFoundError:
+    command_prefix = codex_command_prefix()
+    if not command_prefix:
         print("codex CLI not found.", file=sys.stderr)
-        output_path.unlink(missing_ok=True)
         return 127
-    if code != 0:
-        output_path.unlink(missing_ok=True)
-        return code
     try:
-        data = load_json(output_path)
-    except ContractError as exc:
+        scratch_parent = reviewer_scratch_parent(project)
+    except GateError as exc:
         print(str(exc), file=sys.stderr)
-        output_path.unlink(missing_ok=True)
         return 3
-    output_path.unlink(missing_ok=True)
+    scratch_parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="review-", dir=scratch_parent) as scratch_value:
+        scratch = Path(scratch_value)
+        output_path = scratch / "review-output.json"
+        cmd = review_exec_command(command_prefix, schema, output_path, scratch)
+        review_env = os.environ.copy()
+        review_env.update(
+            {
+                "TEMP": str(scratch),
+                "TMP": str(scratch),
+                "TMPDIR": str(scratch),
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "PYTHONPYCACHEPREFIX": str(scratch / "pycache"),
+            }
+        )
+        try:
+            code = subprocess.run(cmd, input=prompt_body, text=True, cwd=scratch, env=review_env).returncode
+        except (FileNotFoundError, PermissionError) as exc:
+            print(f"codex CLI could not start: {exc}", file=sys.stderr)
+            return 127
+        if code != 0:
+            return code
+        try:
+            guard_after = review_mutation_guard(project, context)
+        except GateError as exc:
+            print(str(exc), file=sys.stderr)
+            return 3
+        try:
+            data = load_json(output_path)
+        except ContractError as exc:
+            print(str(exc), file=sys.stderr)
+            return 3
     errors = validate_review_result(data, context)
     if errors:
         print(json.dumps({"status": "REVIEW_REJECTED", "errors": errors}, indent=2), file=sys.stderr)
         return 3
 
-    review_file = project / ".loop" / "reviews" / f"review-{datetime.now().strftime('%Y%m%d-%H%M%S')}-{context['review_context_id']}.json"
+    review_file = project / ".loop" / "reviews" / f"review-{track}-{datetime.now().strftime('%Y%m%d-%H%M%S')}-{context['review_context_id']}.json"
     write_json(review_file, data)
     receipt = {
         "receipt_version": 1,
         "created_at": now_iso(),
-        "mode": "separate_codex_exec_read_only",
+        "mode": "separate_codex_exec_monitored_read_only",
+        "reviewer_track": track,
         "review_file": str(review_file.relative_to(project)).replace("\\", "/"),
         "review_sha256": sha256_file(review_file),
         "review_context": context,
+        "mutation_guard": {"before": {field: context[field] for field in guard_after}, "after": guard_after},
     }
     receipt_file = review_file.with_suffix(".receipt.json")
     write_json(receipt_file, receipt)
@@ -1073,11 +1225,17 @@ def write_review_summary(project: Path, data: dict[str, Any], receipt: dict[str,
     (project / ".loop" / "REVIEW.md").write_text("\n".join(lines), encoding="utf-8")
 
 
-def latest_review_receipt(project: Path) -> tuple[dict[str, Any] | None, dict[str, Any] | None, list[str]]:
+def latest_review_receipt(project: Path, track: str = "independent") -> tuple[dict[str, Any] | None, dict[str, Any] | None, list[str]]:
     errors: list[str] = []
-    receipts = sorted((project / ".loop" / "reviews").glob("review-*.receipt.json"), reverse=True)
+    receipts: list[Path] = []
+    for path in sorted((project / ".loop" / "reviews").glob("review-*.receipt.json"), reverse=True):
+        try:
+            if load_json(path).get("reviewer_track", "independent") == track:
+                receipts.append(path)
+        except ContractError as exc:
+            errors.append(str(exc))
     if not receipts:
-        return None, None, ["no independent review receipt"]
+        return None, None, errors + [f"no {track} review receipt"]
     try:
         receipt = load_json(receipts[0])
     except ContractError as exc:
@@ -1137,44 +1295,43 @@ def normalized_evidence_refs(project: Path, refs: Any) -> set[str]:
     return normalized
 
 
-def policy_gate(project: Path) -> dict[str, Any]:
-    status = contract_status(project)
-    reasons: list[str] = list(status["errors"])
-    if not status["ready"]:
-        lifecycle = "CONTRACT_DRIFT" if any("DRIFT" in item for item in reasons) else "CONTRACT_REQUIRED"
-        return gate_result(lifecycle, "CANDIDATE_PARTIAL", reasons, {})
-
-    contract = status["contract"]
-    lock = status["lock"]
-    coverage = evaluate_evidence_coverage(project, contract, lock)
-    if not coverage["complete"]:
-        reasons.append("direct evidence coverage is incomplete")
-        return gate_result("NEEDS_EVIDENCE", "CANDIDATE_PARTIAL", reasons, {"coverage": coverage})
-
-    receipt, review_data, review_errors = latest_review_receipt(project)
+def evaluate_review_track(
+    project: Path,
+    contract: dict[str, Any],
+    lock: dict[str, Any],
+    track: str,
+) -> tuple[list[str], dict[str, Any] | None, dict[str, Any] | None]:
+    reasons: list[str] = []
+    label = "" if track == "independent" else f"{track} "
+    receipt, review_data, review_errors = latest_review_receipt(project, track)
     if review_errors or not receipt or not review_data:
-        reasons.extend(review_errors)
-        return gate_result("NEEDS_INDEPENDENT_REVIEW", "CANDIDATE_PARTIAL", reasons, {"coverage": coverage})
-
+        return review_errors, receipt, review_data
     context = receipt.get("review_context", {})
     current = {
         "contract_hash": lock["contract_hash"],
-        "policy_hash": lock["policy_hash"],
+        "policy_hash": effective_policy_hash(project, lock["policy_hash"]),
         "workspace_fingerprint": workspace_fingerprint(project),
         "evidence_ledger_hash": ledger_hash(project),
     }
     for field, expected in current.items():
         if context.get(field) != expected or review_data.get(field) != expected:
-            reasons.append(f"stale independent review: {field} changed")
-    if receipt.get("mode") != "separate_codex_exec_read_only":
-        reasons.append("review was not produced by a separate read-only process")
+            reasons.append(f"stale {label}review: {field} changed")
+    if receipt.get("mode") != "separate_codex_exec_monitored_read_only":
+        reasons.append(f"{label}review was not produced by a separate read-only process")
+    guard = receipt.get("mutation_guard")
+    if not isinstance(guard, dict) or guard.get("before") != guard.get("after") or guard.get("after") != current:
+        reasons.append(f"{label}review mutation guard is missing, changed, or stale")
+    if receipt.get("reviewer_track", "independent") != track:
+        reasons.append(f"{label}review receipt has the wrong reviewer track")
+    if review_data.get("reviewer_track", "independent") != track:
+        reasons.append(f"{label}review result has the wrong reviewer track")
     if review_data.get("reviewer_role") != "independent_reviewer" or review_data.get("self_review") is not False:
-        reasons.append("review is not independent")
+        reasons.append(f"{label}review is not independent")
 
     expected_pairs = required_pairs(contract)
     missing_review_pairs = sorted(expected_pairs - review_claim_pairs(review_data))
     if missing_review_pairs:
-        reasons.append(f"review did not pass required claim/scenario pairs: {missing_review_pairs}")
+        reasons.append(f"{label}review did not pass required claim/scenario pairs: {missing_review_pairs}")
 
     evidence_by_pair = valid_evidence_artifacts_by_pair(project, str(lock["contract_hash"]))
     for pair in sorted(expected_pairs):
@@ -1190,16 +1347,14 @@ def policy_gate(project: Path) -> dict[str, Any]:
             normalized_evidence_refs(project, claim.get("evidence_refs")) & allowed_artifacts
             for claim in passing_claims
         ):
-            reasons.append(f"review PASS is not bound to valid evidence for claim/scenario pair: {pair}")
+            reasons.append(f"{label}review PASS is not bound to valid evidence for claim/scenario pair: {pair}")
 
     findings = review_data.get("findings", [])
-    severe = [item for item in findings if isinstance(item, dict) and item.get("severity") in {"P0", "P1"}]
-    if severe:
-        reasons.append("independent review contains P0/P1 findings")
-
+    if any(isinstance(item, dict) and item.get("severity") in {"P0", "P1"} for item in findings):
+        reasons.append(f"{label}review contains P0/P1 findings")
     challenge = review_data.get("challenge", {}) if isinstance(review_data.get("challenge"), dict) else {}
     if challenge.get("attempted") is not True or challenge.get("verdict") != "PASS":
-        reasons.append("challenge gate did not pass")
+        reasons.append(f"{label}challenge gate did not pass")
     challenge_modalities = {
         item.get("modality")
         for item in challenge.get("cases", [])
@@ -1207,45 +1362,86 @@ def policy_gate(project: Path) -> dict[str, Any]:
     }
     missing_challenges = sorted(set(contract.get("artifact_modalities", [])) - challenge_modalities)
     if missing_challenges:
-        reasons.append(f"no passing challenge case for modalities: {missing_challenges}")
+        reasons.append(f"{label}review has no passing challenge case for modalities: {missing_challenges}")
     valid_artifacts = set().union(*evidence_by_pair.values()) if evidence_by_pair else set()
     for case in challenge.get("cases", []):
-        if not isinstance(case, dict) or case.get("verdict") != "PASS":
-            continue
-        if not normalized_evidence_refs(project, case.get("evidence_refs")) & valid_artifacts:
-            reasons.append(f"passing challenge {case.get('id', '?')} is not bound to valid evidence")
-
+        if isinstance(case, dict) and case.get("verdict") == "PASS":
+            if not normalized_evidence_refs(project, case.get("evidence_refs")) & valid_artifacts:
+                prefix = "" if track == "independent" else f"{track} "
+                reasons.append(f"passing {prefix}challenge {case.get('id', '?')} is not bound to valid evidence")
     remaining_uncertainty = review_data.get("remaining_uncertainty", [])
     if isinstance(remaining_uncertainty, list) and any(str(item).strip() for item in remaining_uncertainty):
-        reasons.append("independent review contains unresolved uncertainty")
-
+        reasons.append(
+            "independent review contains unresolved uncertainty"
+            if track == "independent"
+            else f"{track} review contains unresolved uncertainty"
+        )
     if review_data.get("verdict") != "PASS":
-        reasons.append(f"independent reviewer verdict is {review_data.get('verdict')}")
+        reasons.append(f"{label}reviewer verdict is {review_data.get('verdict')}")
+    return reasons, receipt, review_data
 
+
+def policy_gate(project: Path) -> dict[str, Any]:
+    status = contract_status(project)
+    reasons: list[str] = list(status["errors"])
+    if not status["ready"]:
+        lifecycle = "CONTRACT_DRIFT" if any("DRIFT" in item for item in reasons) else "CONTRACT_REQUIRED"
+        return gate_result(lifecycle, "CANDIDATE_PARTIAL", reasons, {})
+
+    contract = status["contract"]
+    lock = status["lock"]
+    coverage = evaluate_evidence_coverage(project, contract, lock)
+    if not coverage["complete"]:
+        reasons.append("direct evidence coverage is incomplete")
+        return gate_result("NEEDS_EVIDENCE", "CANDIDATE_PARTIAL", reasons, {"coverage": coverage})
+
+    standard = review_standard(project, contract)
+    tracks = ["contract", "adversarial"] if standard == "dual_blind" else ["independent"]
+    review_files: list[str] = []
+    missing_review = False
+    for track in tracks:
+        track_reasons, receipt, review_data = evaluate_review_track(project, contract, lock, track)
+        reasons.extend(track_reasons)
+        if not receipt or not review_data:
+            missing_review = True
+        elif isinstance(receipt.get("review_file"), str):
+            review_files.append(receipt["review_file"])
+    if missing_review:
+        return gate_result(
+            "NEEDS_INDEPENDENT_REVIEW",
+            "CANDIDATE_PARTIAL",
+            reasons,
+            {"coverage": coverage, "review_standard": standard, "review_files": review_files},
+        )
     if reasons:
         return gate_result(
             "REVIEW_FAILED",
             "CANDIDATE_REJECTED",
             reasons,
-            {"coverage": coverage, "review_file": receipt.get("review_file")},
+            {"coverage": coverage, "review_standard": standard, "review_files": review_files},
         )
 
     human_mode = contract.get("gates", {}).get("human_review")
     risk = contract.get("risk_level")
     human_required = human_mode == "required" or (human_mode == "risk_based" and risk in {"L3", "L4"})
-    if human_required:
+    if human_required and standard != "dual_blind":
         return gate_result(
             "NEEDS_HUMAN",
             "CANDIDATE_PARTIAL",
             [f"risk level {risk} requires explicit human acceptance"],
-            {"coverage": coverage, "review_file": receipt.get("review_file")},
+            {"coverage": coverage, "review_standard": standard, "review_files": review_files},
         )
 
     return gate_result(
         "INDEPENDENTLY_VERIFIED",
         "CANDIDATE_PASS",
         [],
-        {"coverage": coverage, "review_file": receipt.get("review_file")},
+        {
+            "coverage": coverage,
+            "review_standard": standard,
+            "review_files": review_files,
+            "human_gate": "AUTONOMOUSLY_APPROVED" if human_required else "NOT_REQUIRED",
+        },
     )
 
 
@@ -1342,9 +1538,11 @@ def run_loop(project: Path, max_iterations: int) -> int:
         if automation["status"] != "AUTOMATION_VERIFIED":
             continue
 
-        code = review(project)
-        if code != 0:
-            return code
+        tracks = ["contract", "adversarial"] if review_standard(project, status["contract"]) == "dual_blind" else ["independent"]
+        for track in tracks:
+            code = review(project, track)
+            if code != 0:
+                return code
         result = policy_gate(project)
         write_gate_outputs(project, result)
         print(json.dumps(result, ensure_ascii=False, indent=2))
@@ -1389,6 +1587,293 @@ def distill_experience(project: Path) -> int:
     return 0
 
 
+def registry_path(home: Path) -> Path:
+    return home / "PROJECT_REGISTRY.yaml"
+
+
+def load_registry(home: Path) -> dict[str, Any]:
+    return load_json(registry_path(home))
+
+
+def registry_check_data(home: Path) -> dict[str, Any]:
+    errors: list[str] = []
+    try:
+        registry = load_registry(home)
+    except ContractError as exc:
+        return {"valid": False, "errors": [str(exc)], "projects": []}
+    unknown = sorted(set(registry) - REGISTRY_KEYS)
+    if unknown:
+        errors.append(f"unknown registry keys: {unknown}")
+    if registry.get("schema_version") != 1:
+        errors.append("schema_version must be 1")
+    projects = registry.get("projects")
+    if not isinstance(projects, list) or not projects:
+        return {"valid": False, "errors": errors + ["projects must be a non-empty array"], "projects": []}
+    seen_ids: set[str] = set()
+    seen_roots: set[str] = set()
+    normalized: list[dict[str, Any]] = []
+    for index, item in enumerate(projects):
+        if not isinstance(item, dict):
+            errors.append(f"project[{index}] must be an object")
+            continue
+        unknown = sorted(set(item) - PROJECT_REGISTRY_KEYS)
+        if unknown:
+            errors.append(f"project[{index}] has forbidden or transient keys: {unknown}")
+        missing = sorted(PROJECT_REGISTRY_KEYS - set(item))
+        if missing:
+            errors.append(f"project[{index}] missing keys: {missing}")
+            continue
+        project_id = str(item["id"])
+        if not re.fullmatch(r"[a-z][a-z0-9_-]*", project_id):
+            errors.append(f"invalid project id: {project_id!r}")
+        if project_id in seen_ids:
+            errors.append(f"duplicate project id: {project_id}")
+        seen_ids.add(project_id)
+        project_root = Path(str(item["root"])).resolve()
+        root_key = os.path.normcase(str(project_root))
+        if root_key in seen_roots:
+            errors.append(f"duplicate project root: {project_root}")
+        seen_roots.add(root_key)
+        if not project_root.is_dir():
+            errors.append(f"project root does not exist: {project_root}")
+        for key in ("constitution", "state"):
+            relative = Path(str(item[key]))
+            if relative.is_absolute() or ".." in relative.parts:
+                errors.append(f"project {project_id} {key} must be a safe relative path")
+        normalized.append({**item, "root": str(project_root)})
+    return {"valid": not errors, "errors": errors, "projects": normalized}
+
+
+def registry_check(home: Path) -> int:
+    result = registry_check_data(home)
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 0 if result["valid"] else 3
+
+
+def central_policy_hash(home: Path) -> str:
+    paths = [home / "CONSTITUTION.md", home / "POLICY.md"]
+    policies = home / "policies"
+    if policies.is_dir():
+        paths.extend(sorted(policies.glob("*.md")))
+    rows = [f"{path.relative_to(home)}:{sha256_file(path)}" for path in paths if path.is_file()]
+    if not rows:
+        raise ContractError(f"central policy files are missing under {home}")
+    return sha256_bytes("\n".join(rows).encode("utf-8"))
+
+
+def project_constitution(entry: dict[str, Any]) -> str:
+    return "\n".join(
+        [
+            "# Project Constitution",
+            "",
+            f"project_id: {entry['id']}",
+            f"project_root: {entry['root']}",
+            "review_standard: dual_blind",
+            "",
+            "## Project Goal",
+            "",
+            str(entry["project_goal"]),
+            "",
+            "## Invariants",
+            "",
+            "- The formal project plan owns goal order and scope.",
+            "- Only one same-project worker may write at a time.",
+            "- Direct evidence, two isolated read-only reviews, and the runtime gate are required for PASS.",
+            "- Cross-project writes, credentials, payment, publication, destructive actions, and product-scope invention are forbidden.",
+            "- Thread rollover preserves state and evidence and never counts as PASS.",
+            "",
+        ]
+    )
+
+
+def migrate_v3(home: Path, apply: bool, project_id: str | None = None) -> int:
+    checked = registry_check_data(home)
+    if not checked["valid"]:
+        print(json.dumps(checked, ensure_ascii=False, indent=2), file=sys.stderr)
+        return 3
+    try:
+        policy_hash = central_policy_hash(home)
+    except ContractError as exc:
+        print(str(exc), file=sys.stderr)
+        return 3
+    results: list[dict[str, Any]] = []
+    selected = [item for item in checked["projects"] if project_id is None or item["id"] == project_id]
+    if project_id is not None and not selected:
+        print(f"unknown project id: {project_id}", file=sys.stderr)
+        return 3
+    for entry in selected:
+        project = Path(entry["root"])
+        constitution = project / str(entry["constitution"])
+        policy_lock = project / ".looploop" / "GLOBAL_POLICY.lock.json"
+        missing = [
+            rel
+            for rel in PATROL_FILES
+            if not (project / rel).is_file() and rel not in {"AGENTS.md", ".looploop/CONSTITUTION.md"}
+        ]
+        status = "PLAN_READY" if not missing else "PLAN_NEEDS_REPAIR"
+        actions: list[str] = []
+        if not constitution.exists():
+            actions.append(f"create {constitution}")
+            if apply:
+                constitution.parent.mkdir(parents=True, exist_ok=True)
+                constitution.write_text(project_constitution(entry), encoding="utf-8")
+        elif "review_standard: dual_blind" not in text(constitution):
+            status = "PLAN_NEEDS_REPAIR"
+            missing.append("constitution lacks review_standard: dual_blind")
+        actions.append(f"bind central policy hash in {policy_lock}")
+        if apply:
+            write_json_atomic(
+                policy_lock,
+                {
+                    "lock_version": 1,
+                    "central_policy_hash": policy_hash,
+                    "review_standard": "dual_blind",
+                    "bound_at": now_iso(),
+                    "source": str(home),
+                },
+            )
+        results.append(
+            {
+                "project_id": entry["id"],
+                "status": status,
+                "missing": sorted(set(missing)),
+                "actions": actions,
+                "applied": apply,
+            }
+        )
+    print(json.dumps({"status": "MIGRATION_APPLIED" if apply else "MIGRATION_DRY_RUN", "projects": results}, ensure_ascii=False, indent=2))
+    return 0
+
+
+def project_patrol_snapshot(entry: dict[str, Any], thread: dict[str, Any]) -> dict[str, Any]:
+    project = Path(entry["root"])
+    files: dict[str, str] = {}
+    missing: list[str] = []
+    for rel in PATROL_FILES:
+        path = project / rel
+        if path.is_file():
+            files[rel] = sha256_file(path)
+        elif rel != "AGENTS.md":
+            missing.append(rel)
+    return {
+        "fingerprint": canonical_json_hash(files),
+        "files": files,
+        "missing": missing,
+        "worker_status": str(thread.get("worker_status", "unknown")),
+        "unhandled_messages": bool(thread.get("unhandled_messages", False)),
+        "blocker": str(thread.get("blocker", "")).strip(),
+    }
+
+
+def project_plan_status(project: Path) -> str:
+    valid = {"PLAN_READY", "PLAN_NEEDS_REPAIR", "PLAN_BLOCKED"}
+
+    def declared_status(path: Path, labels: tuple[str, ...]) -> str | None:
+        for line in text(path).splitlines():
+            for label in labels:
+                match = re.match(
+                    rf"^\s*(?:[-*]\s*)?{label}\s*[:：]\s*`?([A-Z][A-Z0-9_]*)`?",
+                    line,
+                    flags=re.IGNORECASE,
+                )
+                if not match:
+                    continue
+                token = match.group(1).upper()
+                if token in valid:
+                    return token
+                if token.startswith("PLAN_"):
+                    return "PLAN_NEEDS_REPAIR"
+        return None
+
+    state_status = declared_status(project / ".loop" / "STATE.md", ("plan_status", "plan status"))
+    if state_status:
+        return state_status
+
+    plan_status = declared_status(project / ".loop" / "PLAN.md", ("plan_status", "plan status", "status"))
+    if plan_status:
+        return plan_status
+
+    formal_status = declared_status(
+        project / ".looploop" / "project-completion-plan.md",
+        ("plan_status", "plan status", "计划状态"),
+    )
+    return formal_status or "PLAN_NEEDS_REPAIR"
+
+
+def patrol(home: Path, project_id: str | None = None, force_full: bool = False, shadow: bool = False) -> int:
+    checked = registry_check_data(home)
+    if not checked["valid"]:
+        print(json.dumps(checked, ensure_ascii=False, indent=2), file=sys.stderr)
+        return 3
+    thread_map_path = home / "runtime" / "thread-map.json"
+    patrol_state_path = home / "runtime" / "patrol-state.json"
+    thread_map = load_json(thread_map_path) if thread_map_path.exists() else {"projects": {}}
+    previous = load_json(patrol_state_path) if patrol_state_path.exists() else {"projects": {}}
+    decisions: list[dict[str, Any]] = []
+    next_state: dict[str, Any] = {"schema_version": 1, "updated_at": now_iso(), "projects": {}}
+    for entry in checked["projects"]:
+        if project_id is not None and entry["id"] != project_id:
+            continue
+        thread = thread_map.get("projects", {}).get(entry["id"], {})
+        snapshot = project_patrol_snapshot(entry, thread)
+        prior = previous.get("projects", {}).get(entry["id"], {})
+        unchanged = snapshot["fingerprint"] == prior.get("fingerprint")
+        worker_unchanged = snapshot["worker_status"] == prior.get("worker_status")
+        active = snapshot["worker_status"] in {"active", "running"}
+        stable_stop = prior.get("action") in {"COMPLETE", "STOP", "WAIT_EXTERNAL"}
+        light = bool(
+            not force_full
+            and prior
+            and unchanged
+            and worker_unchanged
+            and not snapshot["unhandled_messages"]
+            and not snapshot["blocker"]
+            and ((active and worker_unchanged) or stable_stop)
+        )
+        mode = "LIGHT_CHECK" if light else "FULL_REVIEW"
+        plan_status = project_plan_status(Path(entry["root"]))
+        if light:
+            action = str(prior.get("action", "OBSERVE_WORKER" if active else "STOP"))
+        elif snapshot["missing"]:
+            action = "REPAIR_GOVERNANCE"
+            plan_status = "PLAN_NEEDS_REPAIR"
+        elif active:
+            action = "OBSERVE_WORKER"
+        elif plan_status == "PLAN_READY":
+            action = "DISPATCH_OR_REVIEW"
+        elif plan_status == "PLAN_BLOCKED":
+            action = "STOP"
+        else:
+            action = "REPAIR_PLAN"
+        decision = {
+            "project_id": entry["id"],
+            "mode": mode,
+            "plan_status": plan_status,
+            "action": action,
+            "source_thread_id": thread.get("current_source_thread_id"),
+            "snapshot": snapshot,
+            "shadow": shadow,
+        }
+        decisions.append(decision)
+        next_state["projects"][entry["id"]] = {**snapshot, "action": action, "plan_status": plan_status}
+    if project_id is not None and not decisions:
+        print(f"unknown project id: {project_id}", file=sys.stderr)
+        return 3
+    receipt = {
+        "receipt_version": 1,
+        "created_at": now_iso(),
+        "shadow": shadow,
+        "registry_hash": sha256_file(registry_path(home)),
+        "central_policy_hash": central_policy_hash(home),
+        "decisions": decisions,
+    }
+    receipt_path = home / "ledger" / f"patrol-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')}-{uuid.uuid4().hex[:8]}.json"
+    write_json_atomic(receipt_path, receipt)
+    write_json_atomic(patrol_state_path, next_state)
+    print(json.dumps({"status": "PATROL_COMPLETE", "receipt": str(receipt_path), "decisions": decisions}, ensure_ascii=False, indent=2))
+    return 0
+
+
 def prompt() -> None:
     print(
         "Start Runtime.\n"
@@ -1415,6 +1900,9 @@ def build_parser() -> argparse.ArgumentParser:
             "review",
             "gate",
             "distill-experience",
+            "registry-check",
+            "migrate-v3",
+            "patrol",
             "run",
             "run-loop",
         ],
@@ -1428,12 +1916,28 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--result", choices=["PASS", "FAIL"], default="PASS")
     parser.add_argument("--producer-role", default="worker")
     parser.add_argument("--notes", default="")
+    parser.add_argument("--home")
+    parser.add_argument("--project-id")
+    parser.add_argument("--apply", action="store_true")
+    parser.add_argument("--force-full", action="store_true")
+    parser.add_argument("--shadow", action="store_true")
+    parser.add_argument("--role", choices=["independent", "adversarial", "contract"], default="independent")
     return parser
 
 
 def main() -> int:
     args = build_parser().parse_args()
     project = root(args.project)
+    home = root(args.home) if args.home else None
+    if args.command in {"registry-check", "migrate-v3", "patrol"} and home is None:
+        print("--home is required for V3 orchestration commands", file=sys.stderr)
+        return 3
+    if args.command == "registry-check":
+        return registry_check(home)
+    if args.command == "migrate-v3":
+        return migrate_v3(home, args.apply, args.project_id)
+    if args.command == "patrol":
+        return patrol(home, args.project_id, args.force_full, args.shadow)
     if args.command == "install":
         install(project)
         return 0
@@ -1477,7 +1981,7 @@ def main() -> int:
     if args.command == "score":
         return score(project)
     if args.command == "review":
-        return review(project)
+        return review(project, args.role)
     if args.command == "gate":
         return gate(project)
     if args.command == "distill-experience":

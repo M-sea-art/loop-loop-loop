@@ -5,6 +5,7 @@ import json
 import shutil
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 
@@ -79,6 +80,26 @@ class RuntimeTestCase(unittest.TestCase):
         self.assertTrue((self.project / ".loop" / "PLAN.md").is_file())
         self.assertTrue((self.project / ".loop" / "EVIDENCE.md").is_file())
 
+    def test_install_preserves_existing_project_governance(self) -> None:
+        sentinels = {
+            ".loop/ACCEPTANCE_CONTRACT.json": '{"sentinel":"contract"}\n',
+            ".loop/EVIDENCE_LEDGER.jsonl": '{"sentinel":"ledger"}\n',
+            ".loop/contract.lock.json": '{"sentinel":"lock"}\n',
+            ".looploop/project-completion-plan.md": "# Sentinel plan\n",
+        }
+        for relative, contents in sentinels.items():
+            target = self.project / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(contents, encoding="utf-8")
+        before = {relative: loop.sha256_file(self.project / relative) for relative in sentinels}
+
+        loop.install(self.project)
+
+        after = {relative: loop.sha256_file(self.project / relative) for relative in sentinels}
+        self.assertEqual(after, before)
+        for relative, contents in sentinels.items():
+            self.assertEqual((self.project / relative).read_text(encoding="utf-8"), contents)
+
     def add_artifact_evidence(self, lock: dict, *, evidence_type: str = "test") -> None:
         for scenario in ("SCN-001", "SCN-EDGE"):
             artifact = self.project / ".loop" / "evidence" / f"{scenario}.txt"
@@ -95,11 +116,12 @@ class RuntimeTestCase(unittest.TestCase):
             )
             self.assertEqual(code, 0)
 
-    def add_passing_review(self, contract: dict, lock: dict) -> None:
-        context = loop.review_context(self.project)
+    def add_passing_review(self, contract: dict, lock: dict, track: str = "independent") -> None:
+        context = loop.review_context(self.project, track)
         review = {
             "review_context_id": context["review_context_id"],
             "reviewer_role": "independent_reviewer",
+            "reviewer_track": track,
             "self_review": False,
             "contract_hash": context["contract_hash"],
             "policy_hash": context["policy_hash"],
@@ -136,15 +158,23 @@ class RuntimeTestCase(unittest.TestCase):
             "remaining_uncertainty": [],
             "next_action": "Run the policy gate.",
         }
-        review_file = self.project / ".loop" / "reviews" / "review-test.json"
+        review_file = self.project / ".loop" / "reviews" / f"review-{track}-test.json"
         loop.write_json(review_file, review)
         receipt = {
             "receipt_version": 1,
             "created_at": loop.now_iso(),
-            "mode": "separate_codex_exec_read_only",
+            "mode": "separate_codex_exec_monitored_read_only",
+            "reviewer_track": track,
             "review_file": str(review_file.relative_to(self.project)),
             "review_sha256": loop.sha256_file(review_file),
             "review_context": context,
+            "mutation_guard": {
+                "before": {
+                    field: context[field]
+                    for field in ("contract_hash", "policy_hash", "workspace_fingerprint", "evidence_ledger_hash")
+                },
+                "after": loop.review_mutation_guard(self.project, context),
+            },
         }
         loop.write_json(review_file.with_suffix(".receipt.json"), receipt)
 
@@ -333,6 +363,204 @@ class RuntimeTestCase(unittest.TestCase):
         coverage = loop.evaluate_evidence_coverage(self.project, contract, lock)
         self.assertFalse(coverage["complete"])
         self.assertTrue(any("direct" in item["reason"] for item in coverage["invalid_records"]))
+
+    def test_dual_review_requires_both_tracks_and_autonomously_approves_risk_gate(self) -> None:
+        lock = self.freeze(risk="L3")
+        self.add_artifact_evidence(lock)
+        constitution = self.project / ".looploop" / "CONSTITUTION.md"
+        constitution.parent.mkdir()
+        constitution.write_text("# Project Constitution\n\nreview_standard: dual_blind\n", encoding="utf-8")
+        contract = loop.load_json(loop.contract_path(self.project))
+        self.add_passing_review(contract, lock, "contract")
+        missing = loop.policy_gate(self.project)
+        self.assertEqual(missing["lifecycle_status"], "NEEDS_INDEPENDENT_REVIEW")
+        self.add_passing_review(contract, lock, "adversarial")
+        result = loop.policy_gate(self.project)
+        self.assertEqual(result["lifecycle_status"], "INDEPENDENTLY_VERIFIED", result)
+        self.assertEqual(result["evidence"]["human_gate"], "AUTONOMOUSLY_APPROVED")
+
+    def central_home(self) -> Path:
+        home = self.project / "central"
+        (home / "policies").mkdir(parents=True)
+        (home / "CONSTITUTION.md").write_text("# Orchestrator Constitution\n", encoding="utf-8")
+        (home / "POLICY.md").write_text("# Policy Index\n", encoding="utf-8")
+        (home / "policies" / "evidence.md").write_text("# Evidence Policy\n", encoding="utf-8")
+        return home
+
+    def registry_entry(self) -> dict:
+        return {
+            "id": "test_project",
+            "name": "Test Project",
+            "root": str(self.project),
+            "project_goal": "Deliver the verified observable test artifact.",
+            "constitution": ".looploop/CONSTITUTION.md",
+            "state": ".loop/STATE.md",
+        }
+
+    def test_registry_rejects_transient_project_fields(self) -> None:
+        home = self.central_home()
+        entry = self.registry_entry()
+        entry["current_goal"] = "must not live in registry"
+        loop.write_json(home / "PROJECT_REGISTRY.yaml", {"schema_version": 1, "projects": [entry]})
+        result = loop.registry_check_data(home)
+        self.assertFalse(result["valid"])
+        self.assertTrue(any("forbidden or transient" in item for item in result["errors"]))
+
+    def test_patrol_uses_light_check_only_for_unchanged_active_worker(self) -> None:
+        home = self.central_home()
+        loop.write_json(home / "PROJECT_REGISTRY.yaml", {"schema_version": 1, "projects": [self.registry_entry()]})
+        loop.write_json(
+            home / "runtime" / "thread-map.json",
+            {
+                "projects": {
+                    "test_project": {
+                        "current_source_thread_id": "thread-1",
+                        "worker_status": "active",
+                    }
+                }
+            },
+        )
+        self.assertEqual(loop.patrol(home, shadow=True), 0)
+        first = loop.load_json(home / "runtime" / "patrol-state.json")
+        self.assertEqual(first["projects"]["test_project"]["action"], "REPAIR_GOVERNANCE")
+        (self.project / ".looploop").mkdir(exist_ok=True)
+        (self.project / ".looploop" / "CONSTITUTION.md").write_text("review_standard: dual_blind\n", encoding="utf-8")
+        (self.project / ".looploop" / "project-completion-plan.md").write_text("PLAN_READY\n", encoding="utf-8")
+        self.assertEqual(loop.patrol(home, shadow=True), 0)
+        self.assertEqual(loop.patrol(home, shadow=True), 0)
+        receipts = sorted((home / "ledger").glob("patrol-*.json"))
+        latest = loop.load_json(receipts[-1])
+        self.assertEqual(latest["decisions"][0]["mode"], "LIGHT_CHECK")
+
+    def test_plan_status_ignores_explanatory_status_mentions(self) -> None:
+        project = self.project / "plan-status"
+        (project / ".loop").mkdir(parents=True)
+        (project / ".looploop").mkdir(parents=True)
+        (project / ".loop" / "STATE.md").write_text(
+            "# State\n\nStatus is pending; not `PLAN_BLOCKED`; not accepted.\n",
+            encoding="utf-8",
+        )
+        (project / ".loop" / "PLAN.md").write_text("# Plan\n", encoding="utf-8")
+        (project / ".looploop" / "project-completion-plan.md").write_text(
+            "计划状态：`PLAN_READY`\n\n证据不足时不得记为 `PLAN_BLOCKED`。\n",
+            encoding="utf-8",
+        )
+
+        self.assertEqual(loop.project_plan_status(project), "PLAN_READY")
+
+    def test_plan_status_treats_candidate_as_needing_repair(self) -> None:
+        project = self.project / "candidate-status"
+        (project / ".loop").mkdir(parents=True)
+        (project / ".looploop").mkdir(parents=True)
+        (project / ".loop" / "STATE.md").write_text(
+            "plan_status: PLAN_READY_CANDIDATE\n",
+            encoding="utf-8",
+        )
+        (project / ".loop" / "PLAN.md").write_text(
+            "status: PLAN_READY\n",
+            encoding="utf-8",
+        )
+        (project / ".looploop" / "project-completion-plan.md").write_text(
+            "计划状态：`PLAN_READY`\n",
+            encoding="utf-8",
+        )
+
+        self.assertEqual(loop.project_plan_status(project), "PLAN_NEEDS_REPAIR")
+
+    def test_windows_reviewer_launcher_prefers_command_shim_over_app_alias(self) -> None:
+        def fake_which(name: str) -> str | None:
+            return {
+                "codex.exe": r"C:\\Program Files\\Codex\\codex.exe",
+                "codex.cmd": r"C:\\Users\\test\\codex.cmd",
+                "codex": r"C:\\Program Files\\Codex\\codex",
+            }.get(name)
+
+        with mock.patch.object(loop.os, "name", "nt"), mock.patch.object(loop.shutil, "which", side_effect=fake_which):
+            self.assertEqual(
+                loop.codex_command_prefix(),
+                [loop.os.environ.get("COMSPEC", "cmd.exe"), "/d", "/s", "/c", r"C:\\Users\\test\\codex.cmd"],
+            )
+
+    def test_review_output_schema_types_every_const_and_enum(self) -> None:
+        schema = json.loads((ROOT / ".codex" / "runtime" / "review_result.schema.json").read_text(encoding="utf-8"))
+
+        def visit(value: object, path: str = "$") -> list[str]:
+            errors: list[str] = []
+            if isinstance(value, dict):
+                if ("const" in value or "enum" in value) and "type" not in value:
+                    errors.append(path)
+                for key, child in value.items():
+                    errors.extend(visit(child, f"{path}.{key}"))
+            elif isinstance(value, list):
+                for index, child in enumerate(value):
+                    errors.extend(visit(child, f"{path}[{index}]"))
+            return errors
+
+        self.assertEqual(visit(schema), [])
+
+    def test_review_output_schema_requires_every_closed_object_property(self) -> None:
+        schema = json.loads((ROOT / ".codex" / "runtime" / "review_result.schema.json").read_text(encoding="utf-8"))
+
+        def visit(value: object, path: str = "$") -> list[str]:
+            errors: list[str] = []
+            if isinstance(value, dict):
+                properties = value.get("properties")
+                if value.get("type") == "object" and value.get("additionalProperties") is False and isinstance(properties, dict):
+                    required = value.get("required")
+                    if not isinstance(required, list) or set(required) != set(properties):
+                        errors.append(path)
+                for key, child in value.items():
+                    errors.extend(visit(child, f"{path}.{key}"))
+            elif isinstance(value, list):
+                for index, child in enumerate(value):
+                    errors.extend(visit(child, f"{path}[{index}]"))
+            return errors
+
+        self.assertEqual(visit(schema), [])
+
+    def test_review_prompt_requires_machine_bindable_ledger_paths(self) -> None:
+        self.freeze()
+        context = loop.review_context(self.project, "contract")
+        prompt = loop.review_prompt(self.project, context)
+        self.assertIn("For every PASS claim", prompt)
+        self.assertIn("exact project-relative artifact path", prompt)
+        self.assertIn("For every PASS challenge case", prompt)
+        self.assertIn("record IDs", prompt)
+
+    def test_review_command_uses_monitored_external_scratch(self) -> None:
+        scratch = self.project.parent / "reviewer-scratch" / "review-test"
+        command = loop.review_exec_command(
+            ["codex"],
+            self.project / ".codex" / "runtime" / "review_result.schema.json",
+            scratch / "output.json",
+            scratch,
+        )
+
+        self.assertEqual(command[1:4], ["exec", "--sandbox", "danger-full-access"])
+        self.assertIn("--skip-git-repo-check", command)
+        self.assertNotIn("--add-dir", command)
+        self.assertNotIn(str(self.project), command)
+
+    def test_review_mutation_guard_rejects_project_change(self) -> None:
+        lock = self.freeze()
+        context = loop.review_context(self.project, "contract")
+        self.assertEqual(loop.review_mutation_guard(self.project, context)["contract_hash"], lock["contract_hash"])
+        (self.project / "README.md").write_text("# Mutated\n", encoding="utf-8")
+        with self.assertRaises(loop.GateError):
+            loop.review_mutation_guard(self.project, context)
+
+    def test_reviewer_scratch_parent_is_outside_project(self) -> None:
+        scratch_root = self.project.parent / "central-review-scratch"
+        with mock.patch.dict(loop.os.environ, {"LOOP_REVIEW_SCRATCH_ROOT": str(scratch_root)}):
+            parent = loop.reviewer_scratch_parent(self.project)
+        self.assertNotEqual(parent, self.project.resolve())
+        self.assertNotIn(self.project.resolve(), parent.parents)
+
+    def test_reviewer_scratch_parent_rejects_project_local_override(self) -> None:
+        scratch_root = self.project / ".loop" / "reviewer-tmp"
+        with mock.patch.dict(loop.os.environ, {"LOOP_REVIEW_SCRATCH_ROOT": str(scratch_root)}):
+            with self.assertRaises(loop.GateError):
+                loop.reviewer_scratch_parent(self.project)
 
 
 if __name__ == "__main__":
