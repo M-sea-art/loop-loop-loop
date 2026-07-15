@@ -79,6 +79,21 @@ class RuntimeTestCase(unittest.TestCase):
         self.assertTrue((self.project / ".loop" / "PLAN.md").is_file())
         self.assertTrue((self.project / ".loop" / "EVIDENCE.md").is_file())
 
+    def test_install_preserves_existing_codex_config(self) -> None:
+        config = self.project / ".codex" / "config.toml"
+        config.write_text(
+            'model = "codex-default"\nsandbox_mode = "workspace-write"\n',
+            encoding="utf-8",
+        )
+        before = config.read_bytes()
+
+        loop.install(self.project)
+
+        self.assertEqual(config.read_bytes(), before)
+        self.assertTrue(
+            (self.project / ".codex" / "runtime" / "adaptive-execution.md").is_file()
+        )
+
     def add_artifact_evidence(self, lock: dict, *, evidence_type: str = "test") -> None:
         for scenario in ("SCN-001", "SCN-EDGE"):
             artifact = self.project / ".loop" / "evidence" / f"{scenario}.txt"
