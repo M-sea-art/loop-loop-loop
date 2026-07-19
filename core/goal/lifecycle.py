@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import hashlib
+import json
 from pathlib import Path
+import uuid
 
 from core.evidence.collector import EvidenceCollector
 from core.evidence.models import EvidenceLedger
@@ -12,6 +15,9 @@ from core.goal.goal_contract import GoalContract
 from core.judge.policy_gate import GateDecision, PolicyGate
 from core.judge.verifier import Judge, VerificationResult
 from core.planner.planner import PlanStep, Planner
+from core.runtime.artifact_reviewer import ArtifactReviewer
+from core.runtime.goal_authority import GoalAuthority
+from core.runtime.reliability_runtime import ReliabilityRuntime
 
 
 @dataclass
@@ -82,7 +88,55 @@ class GoalLifecycle:
         plan = self.planner.create_plan(goal)
         trace.append("PLAN_CREATED")
 
-        executions = [self.executor.execute(step) for step in plan]
+        contract_payload = {
+            "objective": goal.objective,
+            "desired_state": goal.desired_state,
+            "target_path": goal.target_path,
+            "expected_content": goal.expected_content,
+            "acceptance_criteria": goal.acceptance_criteria,
+            "constraints": goal.constraints,
+        }
+        contract_hash = hashlib.sha256(
+            json.dumps(contract_payload, sort_keys=True).encode("utf-8")
+        ).hexdigest()
+        goal_id = f"goal-{contract_hash[:12]}-{uuid.uuid4().hex[:8]}"
+        reviewer_capability = GoalAuthority(self.workspace).freeze(
+            goal_id=goal_id,
+            contract_hash=contract_hash,
+            outcome_id=f"outcome-{contract_hash[:16]}",
+            scenario_id=f"scenario-{contract_hash[:16]}",
+            artifact_path=goal.target_path,
+            expected_content=goal.expected_content,
+        )
+        reliability = ReliabilityRuntime(self.workspace)
+        lease = reliability.acquire_writer(
+            project_id="loop-loop-loop",
+            goal_id=goal_id,
+            writer="runtime-worker",
+            thread_id="goal-lifecycle",
+            contract_hash=contract_hash,
+        )
+        executions: list[ExecutionResult] = []
+        authority_events = []
+        for step in plan:
+            if step.action != "write_file":
+                executions.append(ExecutionResult(step.action, "REJECTED"))
+                continue
+            event = reliability.commit_artifact(
+                goal_id=lease.goal_id,
+                writer=lease.writer,
+                contract_hash=lease.contract_hash,
+                artifact_path=step.target_path,
+                content=step.content,
+            )
+            authority_events.append(event)
+            executions.append(
+                ExecutionResult(
+                    step.action,
+                    "EXECUTED",
+                    {"artifact": step.target_path, "event_id": event.event_id},
+                )
+            )
         trace.append("ACTIONS_EXECUTED")
         if not executions or any(result.status != "EXECUTED" for result in executions):
             return GoalRunResult("EXECUTION_FAILED", trace, goal, plan, executions)
@@ -90,8 +144,17 @@ class GoalLifecycle:
         evidence = self.collector.collect(goal)
         trace.append("EVIDENCE_RECORDED")
         review = self.judge.verify(goal, evidence)
-        trace.append("INDEPENDENTLY_VERIFIED" if review.passed else "VERIFICATION_FAILED")
         decision = self.gate.evaluate(goal, evidence, review)
+        if decision.status == "VERIFIED_COMPLETE" and authority_events:
+            reliable_review = ArtifactReviewer(
+                self.workspace, reviewer_capability
+            ).verify_artifact(authority_events[-1].event_id)
+            if not reliable_review.decision.passed:
+                review = VerificationResult(False, [reliable_review.decision.reason])
+                decision = GateDecision(
+                    reliable_review.status, [reliable_review.decision.reason]
+                )
+        trace.append("INDEPENDENTLY_VERIFIED" if review.passed else "VERIFICATION_FAILED")
         trace.append(decision.status)
         return GoalRunResult(
             decision.status,

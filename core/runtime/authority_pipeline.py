@@ -18,6 +18,8 @@ class AuthorityPipeline:
         self.event_log = event_log
 
     def authorize_and_commit(self, goal_id, writer, event):
+        if event.goal_id != goal_id or event.actor != writer:
+            return PipelineResult(False, "event_authority_mismatch")
         decision = self.guard.can_mutate(goal_id, writer)
         if not decision.allowed:
             return PipelineResult(False, decision.reason)

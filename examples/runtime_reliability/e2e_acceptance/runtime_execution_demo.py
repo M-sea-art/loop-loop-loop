@@ -1,30 +1,24 @@
-"""Runtime Reliability v1 end-to-end execution demo scaffold.
+"""Runtime Reliability v1 end-to-end execution demo."""
 
-This intentionally keeps the flow explicit:
-Goal -> Context -> Guard -> Authority Event -> Evidence -> Judge -> Gate
+import sys
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
-The demo is a wiring point for replacing placeholders with runtime components.
-"""
+ROOT = Path(__file__).resolve().parents[3]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
-from dataclasses import dataclass
-
-
-@dataclass
-class ExecutionResult:
-    status: str
-    evidence: list[str]
+from examples.runtime_reliability.scenarios import (
+    ScenarioResult as ExecutionResult,
+    run_success_case as _run_success_case,
+)
 
 
-def run_success_case() -> ExecutionResult:
-    """Represent a successful verified goal path."""
-    return ExecutionResult(
-        status="VERIFIED_COMPLETE",
-        evidence=[
-            "goal_contract_satisfied",
-            "authority_event_recorded",
-            "evidence_verified",
-        ],
-    )
+def run_success_case(workspace: str | Path | None = None) -> ExecutionResult:
+    if workspace is not None:
+        return _run_success_case(workspace)
+    with TemporaryDirectory() as directory:
+        return _run_success_case(directory)
 
 
 if __name__ == "__main__":

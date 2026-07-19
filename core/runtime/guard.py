@@ -18,7 +18,15 @@ class RuntimeMutationGuard:
         if self.revocation_registry.is_revoked(goal_id):
             raise MutationDenied("goal has been revoked")
 
-        if not self.lease_validator.validate(lease, writer):
+        try:
+            if callable(self.lease_validator):
+                self.lease_validator(lease, writer)
+            else:
+                self.lease_validator.validate(lease, writer)
+        except Exception as exc:
+            raise MutationDenied("writer lease is invalid") from exc
+
+        if not lease.is_owned_by(writer):
             raise MutationDenied("writer lease is invalid")
 
         return True
