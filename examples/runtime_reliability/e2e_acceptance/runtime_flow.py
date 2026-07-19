@@ -1,27 +1,24 @@
-"""Runtime reliability E2E flow scaffold.
+"""Execute the production reliability path and report its boundaries."""
 
-This scenario runner documents the intended production path:
-Goal -> Runtime Context -> Guard -> Authority Event -> Evidence -> Judge -> Gate
+from pathlib import Path
 
-The implementation intentionally remains small until the existing runtime
-components are wired together behind stable interfaces.
-"""
+from examples.runtime_reliability.scenarios import run_success_case
 
 
-def run_flow(goal_id: str):
+def run_flow(goal_id: str, workspace: str | Path) -> dict:
+    if not goal_id:
+        raise ValueError("goal_id required")
+    result = run_success_case(workspace)
     return {
         "goal_id": goal_id,
         "flow": [
-            "runtime_context",
+            "frozen_goal_contract",
+            "writer_lease",
             "mutation_guard",
-            "authority_event",
-            "evidence",
-            "judge",
+            "signed_authority_event",
+            "independent_evidence",
             "gate",
         ],
-        "status": "READY_FOR_RUNTIME_WIRING",
+        "status": result.status,
+        "evidence_verified": bool(result.evidence),
     }
-
-
-if __name__ == "__main__":
-    print(run_flow("demo-goal"))

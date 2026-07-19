@@ -1,12 +1,30 @@
-# Runtime Reliability Acceptance Scenarios
+# Runtime Reliability Examples
 
-These examples validate that LoopLoopLoop can distinguish real completion from activity.
+These executable acceptance scenarios prove that LoopLoopLoop distinguishes
+verified goal completion from activity.
 
-## Scenarios
+Run all scenarios:
 
-- `successful_goal`: execution reaches verified completion.
-- `revoke_case`: a human stop decision prevents further mutation.
-- `no_progress_case`: repeated activity without meaningful progress triggers stop-loss.
-- `writer_conflict_case`: competing writers are rejected by single-writer rules.
+```bash
+python examples/runtime_reliability/run_all_scenarios.py
+```
 
-The purpose is not to demonstrate more agents. The purpose is to demonstrate reliable goal completion.
+Expected outcomes:
+
+| Scenario | Expected outcome |
+| --- | --- |
+| successful goal | `VERIFIED_COMPLETE` |
+| human revoke | `VERIFIED_STOPPED` |
+| repeated activity without evidence | `STOPPED_NO_PROGRESS` |
+| concurrent writers | `SECOND_WRITER_REJECTED` |
+
+The production `LoopRuntime` path passes through the same reliability boundary.
+A goal contract is frozen before execution, the writer mutates only under a
+lease, authority events are signed, and completion requires a separate reviewer
+capability bound to the frozen contract.
+
+Run the full regression suite with only the Python standard library:
+
+```bash
+python -W error -m unittest discover -s tests -v
+```

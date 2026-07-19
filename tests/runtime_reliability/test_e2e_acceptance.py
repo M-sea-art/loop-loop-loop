@@ -1,13 +1,22 @@
-"""Acceptance tests for Runtime Reliability v1 scenario registration."""
+import unittest
 
 from examples.runtime_reliability.e2e_acceptance.run_acceptance import run_acceptance
 
 
-def test_acceptance_scenarios_registered():
-    result = run_acceptance()
+class EndToEndAcceptanceTests(unittest.TestCase):
+    def test_acceptance_runner_executes_all_scenarios(self):
+        result = run_acceptance()
+        self.assertEqual(result["status"], "VERIFIED_COMPLETE")
+        self.assertEqual(
+            result["scenarios"],
+            {
+                "success_case": "VERIFIED_COMPLETE",
+                "revoke_case": "VERIFIED_STOPPED",
+                "no_progress_case": "STOPPED_NO_PROGRESS",
+                "writer_conflict_case": "SECOND_WRITER_REJECTED",
+            },
+        )
 
-    assert result["status"] == "READY_FOR_RUNTIME_INTEGRATION"
-    assert "success_case" in result["scenarios"]
-    assert "revoke_case" in result["scenarios"]
-    assert "no_progress_case" in result["scenarios"]
-    assert "writer_conflict_case" in result["scenarios"]
+
+if __name__ == "__main__":
+    unittest.main()

@@ -1,21 +1,22 @@
-"""Runtime Reliability v1 end-to-end acceptance entry point.
+"""Runtime Reliability v1 end-to-end acceptance entry point."""
 
-This runner intentionally keeps scenarios explicit. The purpose is to prove
-runtime invariants before expanding execution complexity.
-"""
-
-SCENARIOS = [
-    "success_case",
-    "revoke_case",
-    "no_progress_case",
-    "writer_conflict_case",
-]
+from examples.runtime_reliability.run_all_scenarios import run
 
 
-def run_acceptance():
+def run_acceptance() -> dict:
+    results = run()
+    statuses = {name: result.status for name, result in results.items()}
     return {
-        "scenarios": SCENARIOS,
-        "status": "READY_FOR_RUNTIME_INTEGRATION",
+        "scenarios": statuses,
+        "status": "VERIFIED_COMPLETE"
+        if statuses
+        == {
+            "success_case": "VERIFIED_COMPLETE",
+            "revoke_case": "VERIFIED_STOPPED",
+            "no_progress_case": "STOPPED_NO_PROGRESS",
+            "writer_conflict_case": "SECOND_WRITER_REJECTED",
+        }
+        else "VERIFICATION_FAILED",
     }
 
 

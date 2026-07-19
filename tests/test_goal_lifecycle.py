@@ -47,6 +47,13 @@ class GoalLifecycleTestCase(unittest.TestCase):
         self.assertEqual(result.plan[0].action, "write_file")
         self.assertEqual(result.plan[0].target_path, "result.txt")
         self.assertTrue(result.evidence.all_verified())
+        events = (self.workspace / ".loop/reliability/authority.jsonl").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("WRITER_LEASE_ACQUIRED", events)
+        self.assertIn("ARTIFACT_CHANGED", events)
+        self.assertIn("VERIFIED_COMPLETE", events)
+        self.assertNotIn("runtime-worker", (self.workspace / ".loop/reliability/leases.json").read_text(encoding="utf-8"))
 
     def test_independent_judge_rejects_artifact_changed_after_collection(self) -> None:
         lifecycle = GoalLifecycle(self.workspace)

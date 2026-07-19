@@ -1,0 +1,12 @@
+"""Terminal states for reliable goal completion."""
+
+from enum import Enum
+
+
+class RuntimeTerminalState(str, Enum):
+    VERIFIED_COMPLETE = "VERIFIED_COMPLETE"
+    VERIFIED_STOPPED = "VERIFIED_STOPPED"
+    WAIT_AUTHORITY = "WAIT_AUTHORITY"
+    STOPPED_NO_PROGRESS = "STOPPED_NO_PROGRESS"
+    RECONCILE_REQUIRED = "RECONCILE_REQUIRED"
+    FAILED_TERMINAL = "FAILED_TERMINAL"
