@@ -23,8 +23,9 @@ class ExecutorBoundary:
         self.guard = guard
 
     def authorize(self, request: MutationRequest) -> bool:
-        if not self.guard.allow_mutation(request):
+        decision = self.guard.can_mutate(request.goal_id, request.writer_id)
+        if not decision.allowed:
             raise MutationRejected(
-                f"mutation rejected for goal={request.goal_id}"
+                f"mutation rejected for goal={request.goal_id}: {decision.reason}"
             )
         return True

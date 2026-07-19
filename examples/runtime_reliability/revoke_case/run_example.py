@@ -1,11 +1,18 @@
-"""Runtime revoke scenario scaffold.
+"""Runtime revoke scenario."""
 
-A future implementation will prove revoked goals cannot mutate state.
-"""
+import sys
+from pathlib import Path
+from tempfile import TemporaryDirectory
+
+ROOT = Path(__file__).resolve().parents[3]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+from examples.runtime_reliability.scenarios import run_revoke_case
 
 
 def run():
-    return "MUTATION_DENIED"
+    with TemporaryDirectory() as directory:
+        return run_revoke_case(directory).status
 
 
 if __name__ == "__main__":

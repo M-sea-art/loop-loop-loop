@@ -1,11 +1,18 @@
-"""Minimal successful goal runtime scenario scaffold.
+"""Successful goal runtime scenario."""
 
-This example will evolve into an end-to-end verification case.
-"""
+import sys
+from pathlib import Path
+from tempfile import TemporaryDirectory
+
+ROOT = Path(__file__).resolve().parents[3]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+from examples.runtime_reliability.scenarios import run_success_case
 
 
 def run():
-    return "VERIFIED_COMPLETE"
+    with TemporaryDirectory() as directory:
+        return run_success_case(directory).status
 
 
 if __name__ == "__main__":

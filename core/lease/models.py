@@ -1,7 +1,7 @@
 """Lease primitives for single-writer runtime ownership."""
 
 from dataclasses import dataclass
-from datetime import datetime
+from dataclasses import asdict
 
 
 @dataclass
@@ -16,3 +16,6 @@ class WriterLease:
 
     def is_owned_by(self, actor: str) -> bool:
         return self.writer == actor
+
+    def to_dict(self) -> dict:
+        return asdict(self)
