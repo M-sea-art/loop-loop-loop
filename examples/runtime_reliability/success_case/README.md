@@ -1,6 +1,6 @@
 # Successful Goal Case
 
-Expected flow:
+Executable flow:
 
 Goal
 -> Execution
@@ -8,3 +8,9 @@ Goal
 -> Judge
 -> Gate
 -> VERIFIED_COMPLETE
+
+Run with:
+
+```bash
+python examples/runtime_reliability/success_case/run_example.py
+```
