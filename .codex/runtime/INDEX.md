@@ -6,14 +6,15 @@ This is the Loop evidence-gated runtime. The prompt starts the runtime; durable 
 
 1. `orchestrator.md`
 2. `recovery.md`
-3. `capability.md`
-4. `agent-factory.md`
-5. `contract.md`
-6. `verification.md`
-7. `observation.md`
-8. `challenge.md`
-9. `acceptance.md`
-10. `experience.md`
+3. `adaptive-execution.md`
+4. `capability.md`
+5. `agent-factory.md`
+6. `contract.md`
+7. `verification.md`
+8. `observation.md`
+9. `challenge.md`
+10. `acceptance.md`
+11. `experience.md`
 
 ## One Loop
 
@@ -31,3 +32,10 @@ Recover -> Frame/Freeze -> Pick -> Execute -> Observe -> Verify -> Independent R
 - Human: owns release, merge, deploy, destructive, credential, payment, and risk-based approval gates.
 
 No score, build, log, screenshot count, or worker declaration can directly produce `CANDIDATE_PASS`.
+
+## Execution Mode Boundary
+
+The normal loop uses the current Codex agent. Complexity analysis is advisory;
+only explicit user authorization may raise the collaboration ceiling. Any
+collaboration uses Codex-native delegation and preserves the active Codex
+configuration and permission model.
