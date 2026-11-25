@@ -39,6 +39,7 @@ RUNTIME_FILES = [
     "INDEX.md",
     "orchestrator.md",
     "recovery.md",
+    "adaptive-execution.md",
     "capability.md",
     "agent-factory.md",
     "contract.md",
@@ -53,6 +54,7 @@ RUNTIME_FILES = [
 ]
 
 POLICY_FILES = [
+    ".codex/runtime/adaptive-execution.md",
     ".codex/runtime/contract.md",
     ".codex/runtime/verification.md",
     ".codex/runtime/observation.md",
